@@ -1,0 +1,1697 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SynthDrop v2 • MilkDrop Visualizer + Synth</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap');
+
+:root {
+  --accent: #00ffaa;
+  --accent2: #ff3377;
+  --bg: #080810;
+  --panel: #0e0e1a;
+  --border: #1e1e35;
+  --text: #c8c8e0;
+  --dim: #5a5a80;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Rajdhani', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  background: var(--panel);
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 100;
+  flex-shrink: 0;
+}
+
+.logo {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 20px;
+  color: var(--accent);
+  letter-spacing: 3px;
+  text-shadow: 0 0 20px rgba(0,255,170,0.5);
+}
+.logo span { color: var(--accent2); }
+
+.controls-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+button {
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.5px;
+}
+button:hover { background: rgba(0,255,170,0.08); border-color: var(--accent); color: var(--accent); }
+button.active { background: var(--accent); color: #000; border-color: var(--accent); }
+button.danger { background: rgba(255,51,119,0.15); border-color: var(--accent2); color: var(--accent2); }
+button.danger:hover { background: var(--accent2); color: #fff; }
+
+.main { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+
+.panel {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 0;
+}
+.panel::-webkit-scrollbar { width: 4px; }
+.panel::-webkit-scrollbar-track { background: transparent; }
+.panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.synth-panel { width: 320px; }
+.visual-panel { width: 240px; border-right: none; border-left: 1px solid var(--border); }
+
+.canvas-container {
+  flex: 1;
+  position: relative;
+  background: #000;
+  min-width: 0;
+}
+
+#glCanvas { width: 100%; height: 100%; display: block; }
+
+.module {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.module h3 {
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+label {
+  display: block;
+  font-size: 11px;
+  margin: 6px 0 2px;
+  color: var(--dim);
+  letter-spacing: 0.5px;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+  height: 3px;
+}
+
+select, input[type="number"] {
+  width: 100%;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+}
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.val { float: right; font-size: 11px; color: var(--accent); font-family: 'Share Tech Mono', monospace; }
+
+.footer {
+  font-size: 11px;
+  padding: 6px 16px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--dim);
+  flex-shrink: 0;
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 1px;
+}
+
+.led {
+  width: 8px; height: 8px;
+  background: #222;
+  border-radius: 50%;
+  display: inline-block;
+  transition: all 0.3s;
+}
+.led.on { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.led.warn { background: #ffaa00; box-shadow: 0 0 8px #ffaa00; }
+
+.hud {
+  position: absolute;
+  top: 16px; left: 16px;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  pointer-events: none;
+  border: 1px solid rgba(0,255,170,0.2);
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+  font-size: 12px;
+}
+.preset-btn {
+  padding: 8px 4px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-align: center;
+  transition: all 0.2s;
+}
+.preset-btn.active-preset {
+  background: rgba(0,255,170,0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.midi-log {
+  height: 60px;
+  overflow-y: auto;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: #888;
+  margin-top: 8px;
+}
+.midi-log div { margin: 1px 0; }
+.midi-log .note-on { color: var(--accent); }
+.midi-log .note-off { color: var(--dim); }
+.midi-log .cc { color: #88aaff; }
+
+.file-drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--dim);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 8px;
+}
+.file-drop-zone:hover, .file-drop-zone.drag-over {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0,255,170,0.04);
+}
+
+.waveform-mini {
+  width: 100%;
+  height: 36px;
+  border-radius: 4px;
+  margin-top: 6px;
+  background: rgba(0,0,0,0.4);
+}
+
+hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">SYNTH<span>DROP</span></div>
+  <div class="controls-bar">
+    <button onclick="toggleFullscreen()">⛶ Full</button>
+    <button onclick="connectMIDI()" id="midiBtn">🎹 MIDI</button>
+    <button onclick="document.getElementById('midiFileInput').click()">📂 .MID</button>
+    <button onclick="document.getElementById('audioFileInput').click()">🎵 Audio</button>
+    <button onclick="toggleMic()" id="micBtn">🎤 Mic</button>
+    <button onclick="panic()" class="danger">🚨 PANIC</button>
+    <button onclick="toggleAutoCycle()" id="autoBtn">🔄 15s</button>
+    <input type="file" id="midiFileInput" accept=".mid,.midi" style="display:none" onchange="loadMIDIFile(event)">
+    <input type="file" id="audioFileInput" accept="audio/*" style="display:none" onchange="loadAudioFile(event)">
+  </div>
+  <div style="display:flex; gap:10px; align-items:center; font-size:12px; font-family:'Share Tech Mono',monospace;">
+    <span><div class="led" id="midiLed"></div> MIDI</span>
+    <span><div class="led" id="audioLed"></div> AUDIO</span>
+    <span><div class="led" id="micLed"></div> MIC</span>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- SYNTH PANEL -->
+  <div class="panel synth-panel">
+
+    <div class="module">
+      <h3>⚡ OSC 1</h3>
+      <div class="grid-2">
+        <div>
+          <label>Forma</label>
+          <select id="osc1Wave"><option value="sine">Sine</option><option value="triangle">Triangle</option><option value="sawtooth" selected>Sawtooth</option><option value="square">Square</option></select>
+        </div>
+        <div>
+          <label>Octava</label>
+          <select id="osc1Oct"><option value="-2">-2</option><option value="-1">-1</option><option value="0" selected>0</option><option value="1">+1</option><option value="2">+2</option></select>
+        </div>
+      </div>
+      <label>Detune <span class="val" id="osc1DetuneVal">0</span></label>
+      <input type="range" id="osc1Detune" min="-1200" max="1200" value="0" oninput="this.nextElementSibling.textContent='';document.getElementById('osc1DetuneVal').textContent=this.value">
+      <label>Vol</label>
+      <input type="range" id="osc1Vol" min="0" max="100" value="80">
+      <label><input type="checkbox" id="osc1Mute"> Mute OSC1</label>
+    </div>
+
+    <div class="module">
+      <h3>⚡ OSC 2 + RING MOD</h3>
+      <div class="grid-2">
+        <div>
+          <label>Forma</label>
+          <select id="osc2Wave"><option value="sine">Sine</option><option value="triangle" selected>Triangle</option><option value="sawtooth">Sawtooth</option><option value="square">Square</option></select>
+        </div>
+        <div>
+          <label>Octava</label>
+          <select id="osc2Oct"><option value="-2">-2</option><option value="-1">-1</option><option value="0" selected>0</option><option value="1">+1</option><option value="2">+2</option></select>
+        </div>
+      </div>
+      <label>Detune <span class="val" id="osc2DetuneVal">0</span></label>
+      <input type="range" id="osc2Detune" min="-1200" max="1200" value="7" oninput="document.getElementById('osc2DetuneVal').textContent=this.value">
+      <label>Vol</label>
+      <input type="range" id="osc2Vol" min="0" max="100" value="60">
+      <label>Ring Mod Depth</label>
+      <input type="range" id="ringDepth" min="0" max="100" value="30">
+      <label><input type="checkbox" id="ringEnabled"> Ring ON</label>
+    </div>
+
+    <div class="module">
+      <h3>🌊 RUIDO</h3>
+      <div class="grid-2">
+        <div>
+          <label>Tipo</label>
+          <select id="noiseType"><option value="white">White</option><option value="pink" selected>Pink</option></select>
+        </div>
+        <div>
+          <label>Vol</label>
+          <input type="range" id="noiseVol" min="0" max="100" value="15">
+        </div>
+      </div>
+      <label><input type="checkbox" id="noiseMute"> Mute Ruido</label>
+    </div>
+
+    <div class="module">
+      <h3>🎛 VCF</h3>
+      <select id="filterType"><option value="lowpass" selected>Low-pass 24dB</option><option value="highpass">High-pass</option><option value="bandpass">Band-pass</option><option value="notch">Notch</option></select>
+      <label>Cutoff <span class="val" id="cutoffVal">1200</span></label>
+      <input type="range" id="filterCutoff" min="20" max="20000" value="1200" oninput="document.getElementById('cutoffVal').textContent=this.value">
+      <label>Resonance <span class="val" id="resVal">8</span></label>
+      <input type="range" id="filterRes" min="0" max="30" value="8" step="0.1" oninput="document.getElementById('resVal').textContent=parseFloat(this.value).toFixed(1)">
+    </div>
+
+    <div class="module">
+      <h3>🎼 ENVOLVENTE (ADSR)</h3>
+      <label>Attack <span class="val" id="atkVal">10ms</span></label>
+      <input type="range" id="envAtk" min="1" max="2000" value="10" oninput="document.getElementById('atkVal').textContent=this.value+'ms'">
+      <label>Decay <span class="val" id="decVal">200ms</span></label>
+      <input type="range" id="envDec" min="1" max="3000" value="200" oninput="document.getElementById('decVal').textContent=this.value+'ms'">
+      <label>Sustain <span class="val" id="susVal">0.7</span></label>
+      <input type="range" id="envSus" min="0" max="1" step="0.01" value="0.7" oninput="document.getElementById('susVal').textContent=parseFloat(this.value).toFixed(2)">
+      <label>Release <span class="val" id="relVal">400ms</span></label>
+      <input type="range" id="envRel" min="1" max="5000" value="400" oninput="document.getElementById('relVal').textContent=this.value+'ms'">
+    </div>
+
+    <div class="module">
+      <h3>🎹 ARPEGIADOR</h3>
+      <label>BPM <span class="val" id="bpmVal">128</span></label>
+      <input type="range" id="arpBPM" min="60" max="240" value="128" oninput="document.getElementById('bpmVal').textContent=this.value;updateArpTiming()">
+      <label>Modo</label>
+      <select id="arpMode"><option value="up">Up</option><option value="down">Down</option><option value="updown">Up/Down</option><option value="random" selected>Random</option></select>
+      <button onclick="toggleArp()" id="arpBtn" style="width:100%;margin-top:8px">▶ Arpegiador ON</button>
+    </div>
+
+    <div class="module">
+      <h3>🔊 EFECTOS</h3>
+      <button onclick="toggleEffects()" id="fxBtn" style="width:100%;margin-bottom:10px">🔌 FX BYPASS</button>
+
+      <label>Delay Time <span class="val" id="dlTimeVal">320ms</span></label>
+      <input type="range" id="delayTime" min="10" max="1500" value="320" oninput="document.getElementById('dlTimeVal').textContent=this.value+'ms';updateEffects()">
+      <label>Feedback <span class="val" id="fbVal">42%</span></label>
+      <input type="range" id="delayFeedback" min="0" max="88" value="42" oninput="document.getElementById('fbVal').textContent=this.value+'%';updateEffects()">
+      <label>Delay Mix <span class="val" id="dlMixVal">35%</span></label>
+      <input type="range" id="delayMix" min="0" max="100" value="35" oninput="document.getElementById('dlMixVal').textContent=this.value+'%';updateEffects()">
+      <label><input type="checkbox" id="pingPong" onchange="updateEffects()"> Ping-Pong</label>
+
+      <hr>
+      <label>Reverb Decay <span class="val" id="rvDecVal">2.8s</span></label>
+      <input type="range" id="revDecay" min="0.3" max="8" step="0.1" value="2.8" oninput="document.getElementById('rvDecVal').textContent=this.value+'s';regenerateIR()">
+      <label>Reverb Mix <span class="val" id="rvMixVal">30%</span></label>
+      <input type="range" id="revMix" min="0" max="100" value="30" oninput="document.getElementById('rvMixVal').textContent=this.value+'%';updateEffects()">
+    </div>
+
+    <div class="module">
+      <h3>📊 MIDI LOG</h3>
+      <div id="noteInfo" style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent);margin-bottom:4px">— Sin nota —</div>
+      <div class="midi-log" id="midiLog"></div>
+    </div>
+
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas-container">
+    <canvas id="glCanvas"></canvas>
+    <div class="hud" id="hud">
+      <div id="presetName" style="color:var(--accent);font-weight:700;font-size:14px;letter-spacing:2px">PLASMA</div>
+      <div id="audioInfo" style="color:#888;font-size:10px;margin-top:2px">— —</div>
+    </div>
+
+    <!-- Audio player overlay -->
+    <div id="audioPlayer" style="display:none;position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:8px;padding:12px 20px;min-width:320px;text-align:center;">
+      <div id="audioFileName" style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent);margin-bottom:8px">—</div>
+      <div style="display:flex;gap:8px;justify-content:center;align-items:center;">
+        <button onclick="audioPlayback && audioPlayback.pause()" style="padding:6px 14px">⏸</button>
+        <button onclick="audioPlayback && audioPlayback.play()" style="padding:6px 14px">▶</button>
+        <button onclick="stopAudio()" class="danger" style="padding:6px 14px">⏹</button>
+      </div>
+      <canvas id="waveformCanvas" class="waveform-mini"></canvas>
+    </div>
+
+    <!-- MIDI file transport -->
+    <div id="midiFilePlayer" style="display:none;position:absolute;bottom:20px;right:20px;background:rgba(0,0,0,0.8);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:8px;padding:12px 16px;">
+      <div id="midiFileName" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent);margin-bottom:6px">—</div>
+      <div style="display:flex;gap:6px;">
+        <button onclick="playMIDIFile()" id="midiPlayBtn" style="padding:5px 12px">▶ Play</button>
+        <button onclick="stopMIDIFile()" class="danger" style="padding:5px 12px">⏹</button>
+      </div>
+      <div id="midiProgress" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:#666;margin-top:4px">0:00 / 0:00</div>
+    </div>
+  </div>
+
+  <!-- VISUAL PANEL -->
+  <div class="panel visual-panel">
+
+    <div class="module">
+      <h3>🎨 PRESETS</h3>
+      <div class="preset-grid" id="presetGrid">
+        <button class="preset-btn active-preset" onclick="setVisualPreset(0)">🌌 Plasma</button>
+        <button class="preset-btn" onclick="setVisualPreset(1)">🌀 Tunnel</button>
+        <button class="preset-btn" onclick="setVisualPreset(2)">🌠 Fireworks</button>
+        <button class="preset-btn" onclick="setVisualPreset(3)">🔮 Mandala</button>
+        <button class="preset-btn" onclick="setVisualPreset(4)">💎 Crystal</button>
+        <button class="preset-btn" onclick="setVisualPreset(5)">🌊 Ocean</button>
+        <button class="preset-btn" onclick="setVisualPreset(6)">🔥 Inferno</button>
+        <button class="preset-btn" onclick="setVisualPreset(7)">🌌 Nebula</button>
+        <button class="preset-btn" onclick="setVisualPreset(8)">🌀 Vortex</button>
+        <button class="preset-btn" onclick="setVisualPreset(9)">✨ Particles</button>
+        <button class="preset-btn" onclick="setVisualPreset(10)">🌈 Rainbow</button>
+        <button class="preset-btn" onclick="setVisualPreset(11)">👁 Hypno</button>
+      </div>
+    </div>
+
+    <div class="module">
+      <h3>⚙ VISUAL PARAMS</h3>
+      <label>Sensibilidad <span class="val" id="sensVal">1.8</span></label>
+      <input type="range" id="visSensitivity" min="0.2" max="4" step="0.1" value="1.8" oninput="document.getElementById('sensVal').textContent=this.value">
+      <label>Velocidad <span class="val" id="speedVal">1.0</span></label>
+      <input type="range" id="visSpeed" min="0.2" max="5" step="0.1" value="1.0" oninput="document.getElementById('speedVal').textContent=this.value">
+      <label>Brillo <span class="val" id="brightVal">1.2</span></label>
+      <input type="range" id="visBrightness" min="0.3" max="3" step="0.1" value="1.2" oninput="document.getElementById('brightVal').textContent=this.value">
+      <label>Zoom <span class="val" id="zoomVal">1.0</span></label>
+      <input type="range" id="visZoom" min="0.3" max="3" step="0.05" value="1.0" oninput="document.getElementById('zoomVal').textContent=this.value">
+    </div>
+
+    <div class="module">
+      <h3>📈 SPECTRUM</h3>
+      <canvas id="specCanvas" width="200" height="60" style="width:100%;border-radius:4px;background:#000"></canvas>
+    </div>
+
+    <div class="module">
+      <h3>🎚 MASTER</h3>
+      <label>Volume <span class="val" id="masterVolVal">85%</span></label>
+      <input type="range" id="masterVol" min="0" max="100" value="85" oninput="document.getElementById('masterVolVal').textContent=this.value+'%';masterGain&&(masterGain.gain.value=this.value/100)">
+    </div>
+
+  </div>
+</div>
+
+<div class="footer">
+  <div>SYNTHDROP v2.0 • WebGL12 Presets • MIDI/Audio Engine • Fixed FX Chain</div>
+  <div id="fps">60 FPS</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// SYNTHDROP v2.0 — Audio Engine completamente reescrito
+// Bugs corregidos:
+//  1. Loop de feedback reverb→masterGain→reverb ELIMINADO
+//  2. Todos los shaders WebGL implementados (no stubs)
+//  3. triggerNote conecta nodos correctamente
+//  4. Noise se genera como buffer estático reutilizable
+//  5. Release de nota on NoteOff implementado
+//  6. MIDI file player con parser nativo
+//  7. Audio file player con Web Audio + visualización
+// ═══════════════════════════════════════════════════════
+
+// ─── Estado global ───────────────────────────────────
+let audioContext, masterGain, analyser, dryGain;
+let delayNode, delayFeedbackGain, delayWetGain, delayInGain;
+let reverbNode, reverbWetGain;
+let pingPongDelay, pingPongGain;
+let noiseBuffer;
+let micStream = null, micSource = null, micGainNode = null;
+let voices = [];
+const MAX_VOICES = 16;
+let arpInterval = null, arpIsOn = false;
+let arpNotes = [60,64,67,72], arpIndex = 0, arpDirection = 1;
+let midiAccess = null;
+let effectsEnabled = false;
+
+// Audio file
+let audioPlayback = null, audioSource = null, audioBuffer = null;
+let audioAnalyserSource = null;
+
+// MIDI file
+let midiFileData = null, midiFileTimeouts = [], midiFilePlaying = false;
+let midiFileStartTime = 0, midiFileDuration = 0;
+
+// WebGL
+let gl, programs = [], currentPreset = 0;
+let glStartTime = performance.now();
+let glFrame = 0, fpsCount = 0, fpsLast = 0;
+
+// Audio data
+let frequencyData = new Uint8Array(512);
+let timeData = new Uint8Array(512);
+
+// Beat detection
+let beatValue = 0, beatDecay = 0.92, lastBass = 0;
+
+// Auto-cycle
+let autoCycleInterval = null;
+
+// ─── PRESET NAMES ────────────────────────────────────
+const PRESET_NAMES = ['PLASMA','TUNNEL','FIREWORKS','MANDALA','CRYSTAL','OCEAN','INFERNO','NEBULA','VORTEX','PARTICLES','RAINBOW','HYPNO'];
+
+// ─── AUDIO INIT ──────────────────────────────────────
+async function initAudio() {
+  audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+
+  masterGain = audioContext.createGain();
+  masterGain.gain.value = 0.85;
+
+  analyser = audioContext.createAnalyser();
+  analyser.fftSize = 1024;
+  analyser.smoothingTimeConstant = 0.82;
+
+  frequencyData = new Uint8Array(analyser.frequencyBinCount);
+  timeData = new Uint8Array(analyser.frequencyBinCount);
+
+  // FX nodes
+  dryGain = audioContext.createGain();
+  dryGain.gain.value = 1.0;
+
+  // Delay: masterGain → delayInGain → delayNode → delayWetGain → analyser
+  //                                 ↗ feedbackGain ↗ (interno, no toca masterGain)
+  delayNode = audioContext.createDelay(2.0);
+  delayFeedbackGain = audioContext.createGain();
+  delayFeedbackGain.gain.value = 0.42;
+  delayWetGain = audioContext.createGain();
+  delayWetGain.gain.value = 0.35;
+  delayInGain = audioContext.createGain();
+  delayInGain.gain.value = 1.0;
+
+  // Feedback loop: delayNode → feedbackGain → delayNode (cerrado, sin salida a masterGain)
+  delayNode.connect(delayFeedbackGain);
+  delayFeedbackGain.connect(delayNode);
+
+  // Wet tap: delayNode → delayWetGain (mezclado después)
+  delayNode.connect(delayWetGain);
+
+  // Ping-pong delay secundario
+  pingPongDelay = audioContext.createDelay(2.0);
+  pingPongGain = audioContext.createGain();
+  pingPongGain.gain.value = 0;
+  delayNode.connect(pingPongDelay);
+  pingPongDelay.connect(pingPongGain);
+
+  // Reverb — IR sintético
+  reverbNode = audioContext.createConvolver();
+  reverbWetGain = audioContext.createGain();
+  reverbWetGain.gain.value = 0.30;
+  reverbNode.connect(reverbWetGain);
+  generateReverbIR(2.8);
+
+  // Grafo inicial (bypass): masterGain → analyser → destination
+  masterGain.connect(analyser);
+  analyser.connect(audioContext.destination);
+
+  // Preparar noise buffer
+  noiseBuffer = generateNoiseBuffer('pink');
+
+  // Iniciar voces
+  for (let i = 0; i < MAX_VOICES; i++) voices.push(createVoice());
+
+  console.log('%c✅ SynthDrop Audio Engine v2 listo', 'color:#00ffaa;font-weight:bold;font-size:14px');
+}
+
+// ─── NOISE BUFFER ────────────────────────────────────
+function generateNoiseBuffer(type) {
+  const len = audioContext.sampleRate * 2;
+  const buf = audioContext.createBuffer(1, len, audioContext.sampleRate);
+  const data = buf.getChannelData(0);
+  if (type === 'white') {
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  } else {
+    // Pink noise (Paul Kellet algorithm)
+    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759;
+      b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856;
+      b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+      data[i] = (b0+b1+b2+b3+b4+b5+b6+w*0.5362) * 0.11;
+      b6 = w * 0.115926;
+    }
+  }
+  return buf;
+}
+
+// ─── REVERB IR ───────────────────────────────────────
+function generateReverbIR(decayTime) {
+  const sr = audioContext.sampleRate;
+  const len = Math.floor(sr * decayTime);
+  const buf = audioContext.createBuffer(2, len, sr);
+  const L = buf.getChannelData(0);
+  const R = buf.getChannelData(1);
+  for (let i = 0; i < len; i++) {
+    const env = Math.pow(1 - i / len, 2.5) * Math.exp(-3 * i / len);
+    L[i] = (Math.random() * 2 - 1) * env;
+    R[i] = (Math.random() * 2 - 1) * env * 0.9;
+  }
+  reverbNode.buffer = buf;
+}
+
+function regenerateIR() {
+  const val = parseFloat(document.getElementById('revDecay').value);
+  generateReverbIR(val);
+}
+
+// ─── VOICE FACTORY ───────────────────────────────────
+function createVoice() {
+  return {
+    osc1: null, osc2: null, noiseNode: null,
+    gain1: null, gain2: null, noiseGain: null,
+    ring: null, filter: null, vca: null,
+    active: false, midiNote: -1
+  };
+}
+
+// ─── TRIGGER NOTE ────────────────────────────────────
+function triggerNote(midiNote, velocity) {
+  if (!audioContext) return;
+  if (audioContext.state === 'suspended') audioContext.resume();
+
+  // Robar la voz más antigua si todas están activas
+  let voice = voices.find(v => !v.active && v.midiNote !== midiNote);
+  if (!voice) voice = voices[glFrame % MAX_VOICES];
+
+  // Limpiar voz anterior si existía
+  releaseVoiceFast(voice);
+
+  const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+  const vel = velocity / 127;
+  const now = audioContext.currentTime;
+
+  const atk = parseFloat(document.getElementById('envAtk').value) / 1000;
+  const dec = parseFloat(document.getElementById('envDec').value) / 1000;
+  const sus = parseFloat(document.getElementById('envSus').value);
+  const osc1Oct = parseInt(document.getElementById('osc1Oct').value);
+  const osc2Oct = parseInt(document.getElementById('osc2Oct').value);
+  const osc1Det = parseFloat(document.getElementById('osc1Detune').value);
+  const osc2Det = parseFloat(document.getElementById('osc2Detune').value);
+  const vol1 = document.getElementById('osc1Mute').checked ? 0 : parseFloat(document.getElementById('osc1Vol').value) / 100;
+  const vol2 = document.getElementById('osc2Mute').checked ? 0 : parseFloat(document.getElementById('osc2Vol').value) / 100;
+  const volN = document.getElementById('noiseMute').checked ? 0 : parseFloat(document.getElementById('noiseVol').value) / 100;
+  const ringDepth = document.getElementById('ringEnabled').checked ? parseFloat(document.getElementById('ringDepth').value) / 100 : 0;
+  const fCutoff = parseFloat(document.getElementById('filterCutoff').value);
+  const fRes = parseFloat(document.getElementById('filterRes').value);
+  const noiseType = document.getElementById('noiseType').value;
+
+  // OSC1
+  const osc1 = audioContext.createOscillator();
+  osc1.type = document.getElementById('osc1Wave').value;
+  osc1.frequency.value = freq * Math.pow(2, osc1Oct);
+  osc1.detune.value = osc1Det;
+
+  // OSC2
+  const osc2 = audioContext.createOscillator();
+  osc2.type = document.getElementById('osc2Wave').value;
+  osc2.frequency.value = freq * Math.pow(2, osc2Oct);
+  osc2.detune.value = osc2Det;
+
+  // Noise (looping buffer)
+  const noiseNode = audioContext.createBufferSource();
+  noiseNode.buffer = (noiseType === 'pink') ? noiseBuffer : generateNoiseBuffer('white');
+  noiseNode.loop = true;
+
+  // Gains
+  const gain1 = audioContext.createGain(); gain1.gain.value = vol1;
+  const gain2 = audioContext.createGain(); gain2.gain.value = vol2;
+  const noiseGain = audioContext.createGain(); noiseGain.gain.value = volN * 0.3;
+
+  // Ring Mod (OSC2 modula ganancia de OSC1)
+  const ringMod = audioContext.createGain(); ringMod.gain.value = 0;
+  if (ringDepth > 0) {
+    osc2.connect(ringMod.gain); // OSC2 modula la ganancia
+    gain2.gain.value = 0; // en modo ring, osc2 solo modula
+    ringMod.gain.value = ringDepth * vol2;
+  }
+
+  // Filter
+  const filter = audioContext.createBiquadFilter();
+  filter.type = document.getElementById('filterType').value;
+  filter.frequency.value = fCutoff;
+  filter.Q.value = fRes;
+
+  // VCA (envolvente ADSR)
+  const vca = audioContext.createGain();
+  vca.gain.setValueAtTime(0, now);
+  vca.gain.linearRampToValueAtTime(vel, now + atk);
+  vca.gain.linearRampToValueAtTime(vel * sus, now + atk + dec);
+  // sustain hasta NoteOff
+
+  // Routing: oscs → gains → filter → vca → masterGain
+  osc1.connect(gain1);
+  osc2.connect(gain2);
+  noiseNode.connect(noiseGain);
+
+  if (ringDepth > 0) {
+    osc1.connect(ringMod);
+    ringMod.connect(filter);
+  } else {
+    gain1.connect(filter);
+  }
+  gain2.connect(filter);
+  noiseGain.connect(filter);
+  filter.connect(vca);
+  vca.connect(masterGain);
+
+  // Arrancar
+  osc1.start(now);
+  osc2.start(now);
+  noiseNode.start(now);
+
+  // Guardar en voz
+  voice.osc1 = osc1; voice.osc2 = osc2; voice.noiseNode = noiseNode;
+  voice.gain1 = gain1; voice.gain2 = gain2; voice.noiseGain = noiseGain;
+  voice.ring = ringMod; voice.filter = filter; voice.vca = vca;
+  voice.active = true;
+  voice.midiNote = midiNote;
+
+  // Activar beat
+  beatValue = 1.0;
+
+  // HUD
+  document.getElementById('noteInfo').innerHTML =
+    `<span style="color:var(--accent)">♪ ${noteNames[midiNote % 12]}${Math.floor(midiNote/12)-1}</span>  vel:${velocity}`;
+  logMIDI(`NoteON  ${midiNote} (${noteNames[midiNote%12]}) vel:${velocity}`, 'note-on');
+}
+
+function releaseNote(midiNote) {
+  const voice = voices.find(v => v.active && v.midiNote === midiNote);
+  if (!voice) return;
+  const rel = parseFloat(document.getElementById('envRel').value) / 1000;
+  const now = audioContext.currentTime;
+  voice.vca.gain.cancelScheduledValues(now);
+  voice.vca.gain.setValueAtTime(voice.vca.gain.value, now);
+  voice.vca.gain.linearRampToValueAtTime(0, now + rel);
+  // Parar nodos después del release
+  setTimeout(() => releaseVoiceFast(voice), (rel + 0.1) * 1000);
+  logMIDI(`NoteOFF ${midiNote}`, 'note-off');
+}
+
+function releaseVoiceFast(voice) {
+  try {
+    if (voice.osc1) { voice.osc1.stop(); voice.osc1.disconnect(); }
+    if (voice.osc2) { voice.osc2.stop(); voice.osc2.disconnect(); }
+    if (voice.noiseNode) { voice.noiseNode.stop(); voice.noiseNode.disconnect(); }
+    if (voice.gain1) voice.gain1.disconnect();
+    if (voice.gain2) voice.gain2.disconnect();
+    if (voice.noiseGain) voice.noiseGain.disconnect();
+    if (voice.ring) voice.ring.disconnect();
+    if (voice.filter) voice.filter.disconnect();
+    if (voice.vca) voice.vca.disconnect();
+  } catch(e) {}
+  voice.active = false; voice.midiNote = -1;
+  voice.osc1=voice.osc2=voice.noiseNode=null;
+}
+
+function panic() {
+  voices.forEach(v => releaseVoiceFast(v));
+  if (arpInterval) { clearInterval(arpInterval); arpIsOn = false; updateArpBtn(); }
+  stopMIDIFile();
+  document.getElementById('noteInfo').textContent = '— PANIC —';
+  logMIDI('⚠ PANIC', 'cc');
+}
+
+// ─── EFFECTS ─────────────────────────────────────────
+function toggleEffects() {
+  effectsEnabled = !effectsEnabled;
+  const btn = document.getElementById('fxBtn');
+
+  // Desconectar todo primero
+  try { masterGain.disconnect(); } catch(e) {}
+  try { dryGain.disconnect(); } catch(e) {}
+  try { delayInGain.disconnect(); } catch(e) {}
+  try { delayWetGain.disconnect(); } catch(e) {}
+  try { pingPongGain.disconnect(); } catch(e) {}
+  try { reverbWetGain.disconnect(); } catch(e) {}
+  try { analyser.disconnect(); } catch(e) {}
+
+  if (effectsEnabled) {
+    // masterGain → (dry + fx send) → analyser → destination
+    // dry path: masterGain → dryGain → analyser
+    // delay path: masterGain → delayInGain → delayNode → [feedback loop] + delayWetGain → analyser
+    // reverb path: masterGain → reverbNode → reverbWetGain → analyser
+    masterGain.connect(dryGain);
+    masterGain.connect(delayInGain);
+    masterGain.connect(reverbNode);
+
+    delayInGain.connect(delayNode); // input al delay
+
+    dryGain.connect(analyser);
+    delayWetGain.connect(analyser);
+    reverbWetGain.connect(analyser);
+
+    if (document.getElementById('pingPong').checked) {
+      pingPongGain.connect(analyser);
+    }
+
+    analyser.connect(audioContext.destination);
+
+    btn.style.background = 'rgba(0,255,170,0.15)';
+    btn.style.borderColor = 'var(--accent)';
+    btn.style.color = 'var(--accent)';
+    btn.textContent = '🔊 FX ACTIVOS';
+  } else {
+    // Bypass limpio
+    masterGain.connect(analyser);
+    analyser.connect(audioContext.destination);
+
+    btn.style.background = '';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+    btn.textContent = '🔌 FX BYPASS';
+  }
+
+  updateEffects();
+}
+
+function updateEffects() {
+  if (!delayNode) return;
+  delayNode.delayTime.value = parseFloat(document.getElementById('delayTime').value) / 1000;
+  delayFeedbackGain.gain.value = Math.min(0.88, parseFloat(document.getElementById('delayFeedback').value) / 100);
+  const dlMix = parseFloat(document.getElementById('delayMix').value) / 100;
+  const rvMix = parseFloat(document.getElementById('revMix').value) / 100;
+  delayWetGain.gain.value = dlMix;
+  reverbWetGain.gain.value = rvMix;
+  dryGain.gain.value = 1.0; // siempre dry a 1 — el mix lo controlan los wet
+
+  if (document.getElementById('pingPong').checked) {
+    pingPongDelay.delayTime.value = parseFloat(document.getElementById('delayTime').value) / 1000 * 0.75;
+    pingPongGain.gain.value = 0.5;
+  } else {
+    pingPongGain.gain.value = 0;
+  }
+}
+
+// ─── ARPEGIADOR ──────────────────────────────────────
+function toggleArp() {
+  arpIsOn = !arpIsOn;
+  updateArpBtn();
+  if (arpIsOn) startArp(); else { clearInterval(arpInterval); }
+}
+
+function updateArpBtn() {
+  const btn = document.getElementById('arpBtn');
+  btn.textContent = arpIsOn ? '⏹ Arpegiador OFF' : '▶ Arpegiador ON';
+  btn.classList.toggle('active', arpIsOn);
+}
+
+function startArp() {
+  if (arpInterval) clearInterval(arpInterval);
+  const bpm = parseFloat(document.getElementById('arpBPM').value);
+  const interval = 60000 / (bpm * 4);
+  arpInterval = setInterval(() => {
+    if (!arpIsOn || arpNotes.length === 0) return;
+    const mode = document.getElementById('arpMode').value;
+    let note;
+    if (mode === 'up') {
+      note = arpNotes[arpIndex % arpNotes.length]; arpIndex++;
+    } else if (mode === 'down') {
+      arpIndex = (arpIndex <= 0) ? arpNotes.length - 1 : arpIndex - 1;
+      note = arpNotes[arpIndex];
+    } else if (mode === 'updown') {
+      note = arpNotes[arpIndex];
+      arpIndex += arpDirection;
+      if (arpIndex >= arpNotes.length) { arpDirection = -1; arpIndex = arpNotes.length - 2; }
+      if (arpIndex < 0) { arpDirection = 1; arpIndex = 1; }
+    } else {
+      note = arpNotes[Math.floor(Math.random() * arpNotes.length)];
+    }
+    triggerNote(note, 90 + Math.floor(Math.random() * 30));
+    setTimeout(() => releaseNote(note), interval * 0.7);
+  }, interval);
+}
+
+function updateArpTiming() {
+  if (arpIsOn) { clearInterval(arpInterval); startArp(); }
+}
+
+// ─── MIDI ─────────────────────────────────────────────
+const noteNames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+async function connectMIDI() {
+  if (!navigator.requestMIDIAccess) { alert('Web MIDI no soportado en este navegador'); return; }
+  try {
+    midiAccess = await navigator.requestMIDIAccess({ sysex: false });
+    document.getElementById('midiLed').classList.add('on');
+    document.getElementById('midiBtn').textContent = '🎹 MIDI ✓';
+
+    midiAccess.inputs.forEach(input => {
+      input.onmidimessage = handleMIDIMessage;
+    });
+
+    midiAccess.onstatechange = e => {
+      if (e.port.type === 'input') {
+        if (e.port.state === 'connected') e.port.onmidimessage = handleMIDIMessage;
+      }
+    };
+
+    logMIDI('MIDI conectado — ' + midiAccess.inputs.size + ' input(s)', 'cc');
+  } catch(e) {
+    alert('MIDI: ' + e.message);
+  }
+}
+
+function handleMIDIMessage(e) {
+  if (!audioContext) return;
+  if (audioContext.state === 'suspended') audioContext.resume();
+  const [status, data1, data2] = e.data;
+  const cmd = status & 0xF0;
+  if (cmd === 0x90 && data2 > 0) {
+    triggerNote(data1, data2);
+    arpNotes = [...new Set([...arpNotes, data1])].slice(-8);
+  } else if (cmd === 0x80 || (cmd === 0x90 && data2 === 0)) {
+    releaseNote(data1);
+  } else if (cmd === 0xB0) {
+    // CC
+    if (data1 === 74) { document.getElementById('filterCutoff').value = Math.round(data2/127*20000); document.getElementById('cutoffVal').textContent = document.getElementById('filterCutoff').value; }
+    if (data1 === 7) { document.getElementById('masterVol').value = data2; masterGain.gain.value = data2/127; }
+    logMIDI(`CC${data1}=${data2}`, 'cc');
+  }
+}
+
+function logMIDI(msg, cls) {
+  const log = document.getElementById('midiLog');
+  const div = document.createElement('div');
+  div.className = cls || '';
+  div.textContent = msg;
+  log.appendChild(div);
+  while (log.children.length > 20) log.removeChild(log.firstChild);
+  log.scrollTop = log.scrollHeight;
+}
+
+// ─── MIDI FILE PLAYER ─────────────────────────────────
+function loadMIDIFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    midiFileData = parseMIDI(new Uint8Array(e.target.result));
+    document.getElementById('midiFileName').textContent = file.name;
+    document.getElementById('midiFilePlayer').style.display = 'block';
+    document.getElementById('midiProgress').textContent = '0:00 / ' + formatTime(midiFileDuration);
+    logMIDI('MIDI file: ' + file.name, 'cc');
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseMIDI(bytes) {
+  // Parser MIDI básico: extrae eventos NoteOn/Off con timestamps absolutos en ms
+  let pos = 0;
+  function read32() { return (bytes[pos++]<<24)|(bytes[pos++]<<16)|(bytes[pos++]<<8)|bytes[pos++]; }
+  function read16() { return (bytes[pos++]<<8)|bytes[pos++]; }
+  function readVarLen() {
+    let val = 0;
+    let b;
+    do { b = bytes[pos++]; val = (val<<7)|(b&0x7F); } while (b & 0x80);
+    return val;
+  }
+
+  if (String.fromCharCode(...bytes.slice(0,4)) !== 'MThd') return [];
+  pos = 4; read32(); // skip header len
+  const format = read16();
+  const numTracks = read16();
+  const timeDivision = read16();
+  const ppq = timeDivision & 0x7FFF;
+
+  let events = [];
+  let tempo = 500000; // default 120 BPM
+
+  for (let t = 0; t < numTracks; t++) {
+    if (String.fromCharCode(...bytes.slice(pos,pos+4)) !== 'MTrk') break;
+    pos += 4;
+    const trackLen = read32();
+    const trackEnd = pos + trackLen;
+    let tick = 0;
+    let running = 0;
+
+    while (pos < trackEnd) {
+      const delta = readVarLen();
+      tick += delta;
+      let status = bytes[pos];
+
+      if (status < 0x80) { status = running; } else { running = status; pos++; }
+
+      const cmd = status & 0xF0;
+      const ch = status & 0x0F;
+
+      if (cmd === 0x90) {
+        const note = bytes[pos++]; const vel = bytes[pos++];
+        events.push({ tick, type: vel > 0 ? 'noteon' : 'noteoff', note, vel });
+      } else if (cmd === 0x80) {
+        const note = bytes[pos++]; pos++; // skip vel
+        events.push({ tick, type: 'noteoff', note, vel: 0 });
+      } else if (cmd === 0xA0) { pos += 2; }
+      else if (cmd === 0xB0) { pos += 2; }
+      else if (cmd === 0xC0) { pos++; }
+      else if (cmd === 0xD0) { pos++; }
+      else if (cmd === 0xE0) { pos += 2; }
+      else if (status === 0xFF) {
+        const type = bytes[pos++];
+        const len = readVarLen();
+        if (type === 0x51 && len === 3) {
+          tempo = (bytes[pos]<<16)|(bytes[pos+1]<<8)|bytes[pos+2];
+        }
+        pos += len;
+      } else if (status === 0xF0 || status === 0xF7) {
+        const len = readVarLen(); pos += len;
+      } else { pos++; }
+    }
+    pos = trackEnd;
+  }
+
+  // Convertir ticks a ms
+  const msPerTick = (tempo / 1000) / ppq;
+  events.forEach(e => e.ms = e.tick * msPerTick);
+  events.sort((a,b) => a.ms - b.ms);
+  midiFileDuration = events.length > 0 ? events[events.length-1].ms / 1000 : 0;
+  return events;
+}
+
+function playMIDIFile() {
+  if (!midiFileData || midiFilePlaying) return;
+  if (!audioContext) return;
+  if (audioContext.state === 'suspended') audioContext.resume();
+  midiFilePlaying = true;
+  midiFileStartTime = performance.now();
+  document.getElementById('midiPlayBtn').textContent = '⏸ Playing';
+
+  midiFileTimeouts = midiFileData.map(ev => {
+    return setTimeout(() => {
+      if (!midiFilePlaying) return;
+      if (ev.type === 'noteon') triggerNote(ev.note, ev.vel);
+      else releaseNote(ev.note);
+
+      // Progreso
+      const elapsed = (performance.now() - midiFileStartTime) / 1000;
+      document.getElementById('midiProgress').textContent =
+        formatTime(elapsed) + ' / ' + formatTime(midiFileDuration);
+    }, ev.ms);
+  });
+
+  // Finalizar
+  setTimeout(() => {
+    midiFilePlaying = false;
+    document.getElementById('midiPlayBtn').textContent = '▶ Play';
+    document.getElementById('midiProgress').textContent = formatTime(midiFileDuration) + ' / ' + formatTime(midiFileDuration);
+  }, midiFileDuration * 1000 + 500);
+}
+
+function stopMIDIFile() {
+  midiFilePlaying = false;
+  midiFileTimeouts.forEach(t => clearTimeout(t));
+  midiFileTimeouts = [];
+  panic();
+  document.getElementById('midiPlayBtn').textContent = '▶ Play';
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m + ':' + String(sec).padStart(2,'0');
+}
+
+// ─── AUDIO FILE ───────────────────────────────────────
+async function loadAudioFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (!audioContext) await initAudio();
+  if (audioContext.state === 'suspended') await audioContext.resume();
+
+  stopAudio();
+
+  const arrayBuf = await file.arrayBuffer();
+  audioBuffer = await audioContext.decodeAudioData(arrayBuf);
+
+  document.getElementById('audioFileName').textContent = file.name;
+  document.getElementById('audioPlayer').style.display = 'block';
+  document.getElementById('audioLed').classList.add('on');
+
+  drawWaveform(audioBuffer);
+  playAudioBuffer();
+  logMIDI('Audio: ' + file.name, 'cc');
+}
+
+function playAudioBuffer() {
+  if (!audioBuffer) return;
+  stopAudio();
+
+  const src = audioContext.createBufferSource();
+  src.buffer = audioBuffer;
+  src.loop = false;
+  src.connect(masterGain);
+  src.start(0);
+  audioSource = src;
+  audioPlayback = { play: () => playAudioBuffer(), pause: () => { try { src.stop(); } catch(e){} } };
+  src.onended = () => { document.getElementById('audioLed').classList.remove('on'); };
+}
+
+function stopAudio() {
+  if (audioSource) { try { audioSource.stop(); } catch(e) {} audioSource = null; }
+  audioPlayback = null;
+}
+
+function drawWaveform(buf) {
+  const canvas = document.getElementById('waveformCanvas');
+  const ctx = canvas.getContext('2d');
+  const data = buf.getChannelData(0);
+  const step = Math.ceil(data.length / canvas.width);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle = '#00ffaa';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 0; x < canvas.width; x++) {
+    let min=1, max=-1;
+    for (let j=0; j<step; j++) {
+      const s = data[(x*step)+j] || 0;
+      if (s < min) min = s; if (s > max) max = s;
+    }
+    const y1 = (1 + min) * canvas.height / 2;
+    const y2 = (1 + max) * canvas.height / 2;
+    if (x === 0) ctx.moveTo(x, y1); else { ctx.lineTo(x, y1); ctx.lineTo(x, y2); }
+  }
+  ctx.stroke();
+}
+
+// ─── MICROFONO ────────────────────────────────────────
+async function toggleMic() {
+  if (!audioContext) await initAudio();
+  if (audioContext.state === 'suspended') await audioContext.resume();
+
+  if (!micStream) {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      micSource = audioContext.createMediaStreamSource(micStream);
+      micGainNode = audioContext.createGain();
+      micGainNode.gain.value = 1.5;
+      // Mic → micGain → masterGain (NO al destination, para evitar feedback acústico)
+      micSource.connect(micGainNode);
+      micGainNode.connect(analyser); // directo al analyser, no al masterGain
+      document.getElementById('micLed').classList.add('on');
+      document.getElementById('micBtn').textContent = '🎤 Mic ON';
+      logMIDI('Micrófono activo', 'cc');
+    } catch(e) {
+      alert('Micrófono: ' + e.message);
+    }
+  } else {
+    micStream.getTracks().forEach(t => t.stop());
+    micStream = null;
+    if (micSource) micSource.disconnect();
+    if (micGainNode) micGainNode.disconnect();
+    micSource = micGainNode = null;
+    document.getElementById('micLed').classList.remove('on');
+    document.getElementById('micBtn').textContent = '🎤 Mic';
+    logMIDI('Micrófono desactivado', 'note-off');
+  }
+}
+
+// ─── WEBGL ────────────────────────────────────────────
+const VS = `
+  attribute vec2 a_pos;
+  void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+`;
+
+// 12 Fragment Shaders — uno por preset
+const SHADERS = [
+
+// 0 PLASMA — plasma clásico con ondas trigonométricas reactivas
+`precision highp float;
+uniform float u_time,u_bass,u_mid,u_treble,u_beat,u_speed,u_bright,u_sens,u_zoom;
+uniform vec2 u_res;
+void main(){
+  vec2 uv=(gl_FragCoord.xy/u_res-.5)*u_zoom*2.;
+  uv.x*=u_res.x/u_res.y;
+  float t=u_time*u_speed;
+  float b=u_bass*u_sens, m=u_mid*u_sens, tr=u_treble*u_sens;
+  float p1=sin(uv.x*6.+t+b*3.)*cos(uv.y*4.+t*.7);
+  float p2=sin((uv.x+uv.y)*8.+t*1.3+m*2.)*0.5;
+  float p3=cos(length(uv)*10.-t*2.+tr*4.);
+  float p=(p1+p2+p3)*.333+.5;
+  vec3 col=vec3(
+    sin(p*6.28+t)*0.5+0.5+b*.5,
+    sin(p*6.28+t+2.09)*0.5+0.5+m*.3,
+    sin(p*6.28+t+4.19)*0.5+0.5+tr*.4
+  );
+  col*=u_bright*(1.+u_beat*.5);
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);
+}`,
+
+// 1 TUNNEL — túnel de profundidad con rotación reactiva
+`precision highp float;
+uniform float u_time,u_bass,u_mid,u_treble,u_beat,u_speed,u_bright,u_sens,u_zoom;
+uniform vec2 u_res;
+void main(){
+  vec2 uv=(gl_FragCoord.xy/u_res-.5)*2.*u_zoom;
+  uv.x*=u_res.x/u_res.y;
+  float t=u_time*u_speed;
+  float ang=atan(uv.y,uv.x);
+  float r=length(uv);
+  float b=u_bass*u_sens, m=u_mid*u_sens;
+  float rot=t+b*2.;
+  float tunnel=1./(r+.01)*.3;
+  float stripe=sin(ang*8.+rot*2.+m*5.)*0.5+0.5;
+  float depth=fract(tunnel+t*.5);
+  float glow=exp(-r*2.*(1.-b*.5));
+  vec3 c=vec3(
+    depth*stripe+glow*.3+b*.4,
+    depth*(1.-stripe)*0.7+m*.3,
+    (1.-depth)*0.8+u_treble*u_sens*.5+glow*.5
+  );
+  c*=u_bright*(1.+u_beat*.8)*smoothstep(2.,0.1,r);
+  gl_FragColor=vec4(clamp(c,0.,1.),1.);
+}`,
+
+// 2 FIREWORKS — chispas de color reactivas
+`precision highp float;
+uniform float u_time,u_bass,u_mid,u_treble,u_beat,u_speed,u_bright,u_sens,u_zoom;
+uniform vec2 u_res;
+float rand(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+void main(){
+  vec2 uv=(gl_FragCoord.xy/u_res-.5)*2.*u_zoom;
+  uv.x*=u_res.x/u_res.y;
+  float t=u_time*u_speed;
+  float b=u_bass*u_sens, m=u_mid*u_sens, tr=u_treble*u_sens;
+  vec3 col=vec3(0.);
+  for(int i=0;i<12;i++){
+    float fi=float(i);
+    vec2 origin=vec2(rand(vec2(fi,fi+.3))-.5, rand(vec2(fi+.7,fi+.1))-.5)*1.5;
+    float phase=fract(t*.2+rand(vec2(fi,fi+1.)));
+    float burst=b+m*0.5;
+    float r2=length(uv-origin*phase);
+    float spark=exp(-r2*20.*(1.5-phase))*pow(1.-phase,1.5)*burst;
+    vec3 hue=vec3(rand(vec2(fi,0.)),rand(vec2(fi,1.)),rand(vec2(fi,2.)));
+    col+=spark*hue*(1.+u_beat);
+  }
+  col*=u_bright;
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);
+}`,
+
+// 3 MANDALA — simetría radial con interferencia
+`precision highp float;
+uniform float u_time,u_bass,u_mid,u_treble,u_beat,u_speed,u_bright,u_sens,u_zoom;
+uniform vec2 u_res;
+void main(){
+  vec2 uv=(gl_FragCoord.xy/u_res-.5)*2.*u_zoom;
+  uv.x*=u_res.x/u_res.y;
+  float t=u_time*u_speed;
+  float b=u_bass*u_sens, m=u_mid*u_sens, tr=u_treble*u_sens;
+  float ang=atan(uv.y,uv.x);
+  float r=length(uv);
+  float sym=6.+floor(b*8.);
+  float a=mod(ang,6.2832/sym)*sym;
+  float wave=sin(r*12.-t*2.+m*3.)*cos(a*2.+t+b*2.);
+  float ring=sin(r*20.+t*3.-b*5.)*0.5+0.5;
+  float petal=pow(abs(cos(a*0.5)),2.+m*3.)*exp(-r*2.);
+  float v=wave*.3+ring*.3+petal*.4;
+  vec3 col=vec3(
+    v*0.8+tr*.3+sin(t+r*3.)*.2,
+    v*0.5+m*.4+sin(t*1.3+ang)*.2,
+    v*0.9+b*.5+cos(t*.7+r*5.)*.2
+  );
+  col*=u_bright*(1.+u_beat*.6)*(1.2-r*.4);
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);
+}`,
+
+// 4 CRYSTAL — fractales de simetría cristalina
+`precision highp float;
+uniform float u_time,u_bass,u_mid,u_treble,u_beat,u_speed,u_bright,u_sens,u_zoom;
+uniform vec2 u_res;
+void main(){
+  vec2 uv=(gl_FragCoord.xy/u_res-.5)*u_zoom*3.;
+  uv.x*=u_res.x/u_res.y;
+  float t=u_time*u_speed;
+  float b=u_bass*u_sens, m=u_mid*u_sens, tr=u_treble*u_sens;
+  vec2 z=uv;
+  float n=0.;
+  for(int i=0;i<8;i++){
+    z=abs(z)/dot(z,z)-vec2(.5+b*.3,m*.2+t*.05);
+    n+=exp(-length(z));
+  }
+  n/=8.;
+  vec3 col=vec3(
+    n+sin(n*12.+t)*0.3+b*.2,
+    n*.7+cos(n*8.+t*1.2)*0.3+m*.2,
+    n*.5+sin(n*15.+t*.8)*0.2+tr*.3
+  );
+  col*=u_bright*(1.+u_beat*.4);
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);
+}`,
+
+// 5 OCEAN — ondas con caustics y espuma
+`precision highp float;
+uniform float u_time,u_bass,u_mid,u_treble,u_beat,u_speed,u_bright,u_sens,u_zoom;
+uniform vec2 u_res;
+void main(){
+  vec2 uv=(gl_FragCoord.xy/u_res-.5)*2.*u_zoom;
+  uv.x*=u_res.x/u_res.y;
+  float t=u_time*u_speed;
+  float b=u_bass*u_sens, m=u_mid*u_sens, tr=u_treble*u_sens;
+  float wave=0.;
+  for(int i=1;i<=6;i++){
+    float fi=float(i);
+    wave+=sin(uv.x*fi*2.+t*(1.+fi*.1)+b*fi)*cos(uv.y*fi*1.5+t*(0.8-fi*.05)+m)*0.5/fi;
+  }
+  float caustic=pow(abs(sin(wave*4.+t+b*3.)),8.)*0.5;
+  float foam=smoothstep(0.3,0.5,wave+0.5)*(tr+0.3);
+  float depth=wave*0.5+0.5;
+  vec3 col=mix(
+    vec3(0.0,0.05,0.2+m*.3),
+    vec3(0.1,0.5+b*.3,0.8),
+    depth
+  );
+  col+=vec3(caustic)*vec3(0.5,0.8,1.0);
+  col+=foam*vec3(0.8,0.9,1.0);
+  col*=u_bright*(1.+u_beat*.3);
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);
+}`,
+
+// 6 INFERNO — fuego y lava reactivos
+`precision highp float;
+uniform float u_time,u_bass,u_mid,u_treble,u_beat,u_speed,u_bright,u_sens,u_zoom;
+uniform vec2 u_res;
+float hash(vec2 p){return fract(sin(dot(p,vec2(17.3,5.7)))*4591.3);}
+float noise(vec2 p){
+  vec2 i=floor(p), f=fract(p);
+  f=f*f*(3.-2.*f);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
+}
+void main(){
+  vec2 uv=(gl_FragCoord.xy/u_res-.5)*2.*u_zoom;
+  uv.x*=u_res.x/u_res.y;
+  float t=u_time*u_speed;
+  float b=u_bass*u_sens, m=u_mid*u_sens, tr=u_treble*u_sens;
+  vec2 p=uv*3.;
+  float n=noise(p+vec2(0.,t*2.+b*3.));
+  n+=noise(p*2.1+vec2(t*1.5,b*2.))*0.5;
+  n+=noise(p*4.3-vec2(t,m*3.))*0.25;
+  n+=noise(p*8.7+vec2(t*.5+m,tr*2.))*0.125;
+  n=n/1.875;
+  float fire=1.-uv.y*0.5-0.3+b*.3;
+  n=clamp(n*fire,0.,1.);
+  vec3 col=vec3(n*1.5, n*n*.8+b*.2, n*n*n*.2)*(1.+u_beat*.5);
+  col*=u_bright;
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);
+}`,
+
+// 7 NEBULA — nebulosa espacial con estrellas
+`precision highp float;
+uniform float u_time,u_bass,u_mid,u_treble,u_beat,u_speed,u_bright,u_sens,u_zoom;
+uniform vec2 u_res;
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
+float fbm(vec2 p){
+  float v=0.,a=.5;
+  for(int i=0;i<5;i++){v+=a*(.5+.5*sin(p.x)*cos(p.y));p*=2.1;a*=.5;}
+  return v;
+}
+void main(){
+  vec2 uv=(gl_FragCoord.xy/u_res-.5)*2.*u_zoom;
+  uv.x*=u_res.x/u_res.y;
+  float t=u_time*u_speed*.3;
+  float b=u_bass*u_sens, m=u_mid*u_sens, tr=u_treble*u_sens;
+  vec2 q=uv+vec2(t*.1,t*.07);
+  float n=fbm(q*2.+fbm(q*2.+fbm(q*1.5)));
+  float nebula=pow(n,1.5-b*.5);
+  vec3 col=vec3(
+    nebula*.4+b*.3+sin(n*6.+t)*.1,
+    nebula*.2+m*.4+cos(n*4.+t*1.3)*.1,
+    nebula*.8+tr*.5+sin(n*8.+t*.7)*.15
+  );
+  // Stars
+  vec2 sg=floor(uv*50.);
+  float star=pow(hash(sg),30.)*smoothstep(.7,.9,hash(sg+.5));
+  col+=star*vec3(0.9,0.95,1.)*1.5;
+  col*=u_bright*(1.+u_beat*.4);
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);
+}`,
+
+// 8 VORTEX — espiral hipnótica
+`precision highp float;
+uniform float u_time,u_bass,u_mid,u_treble,u_beat,u_speed,u_bright,u_sens,u_zoom;
+uniform vec2 u_res;
+void main(){
+  vec2 uv=(gl_FragCoord.xy/u_res-.5)*2.*u_zoom;
+  uv.x*=u_res.x/u_res.y;
+  float t=u_time*u_speed;
+  float b=u_bass*u_sens, m=u_mid*u_sens, tr=u_treble*u_sens;
+  float ang=atan(uv.y,uv.x);
+  float r=length(uv);
+  float vortex=ang+r*4.*(1.+b)+t*2.;
+  float arms=sin(vortex*3.+m*5.)*0.5+0.5;
+  float core=exp(-r*(3.-b*2.));
+  float rings=sin(r*20.-t*4.+b*8.)*.5+.5;
+  float v=arms*(1.-core)+rings*.3+core;
+  vec3 col=vec3(
+    v*(.5+tr*.5)+sin(ang+t)*.3,
+    v*(.3+m*.5)+cos(ang*2.+t*.7)*.2,
+    core*0.8+rings*.3+b*.4
+  );
+  col*=u_bright*(1.+u_beat*.7)*(1.2-r*.2);
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);
+}`,
+
+// 9 PARTICLES — campo de partículas
+`precision highp float;
+uniform float u_time,u_bass,u_mid,u_treble,u_beat,u_speed,u_bright,u_sens,u_zoom;
+uniform vec2 u_res;
+float rand(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+void main(){
+  vec2 uv=(gl_FragCoord.xy/u_res-.5)*2.*u_zoom;
+  uv.x*=u_res.x/u_res.y;
+  float t=u_time*u_speed;
+  float b=u_bass*u_sens, m=u_mid*u_sens, tr=u_treble*u_sens;
+  vec3 col=vec3(0.);
+  for(int i=0;i<24;i++){
+    float fi=float(i);
+    vec2 seed=vec2(rand(vec2(fi,0.)),rand(vec2(0.,fi)));
+    float phase=fract(t*.1+seed.x);
+    vec2 pos=vec2(
+      sin(phase*6.28+seed.y*20.+b*3.),
+      cos(phase*6.28*1.3+seed.x*15.+m*2.)
+    )*(.3+phase*.7);
+    float d=length(uv-pos);
+    float glow=exp(-d*12./(0.2+b*.3))*(1.-phase)*.5;
+    vec3 hue=vec3(rand(vec2(fi,.5)),rand(vec2(fi,.6)),rand(vec2(fi,.7)));
+    col+=glow*hue*(1.+u_beat*.8+tr*.5);
+  }
+  col*=u_bright;
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);
+}`,
+
+// 10 RAINBOW — arcoiris dinámico
+`precision highp float;
+uniform float u_time,u_bass,u_mid,u_treble,u_beat,u_speed,u_bright,u_sens,u_zoom;
+uniform vec2 u_res;
+vec3 hsv2rgb(vec3 c){vec4 K=vec4(1.,2./3.,1./3.,3.);vec3 p=abs(fract(c.xxx+K.xyz)*6.-K.www);return c.z*mix(K.xxx,clamp(p-K.xxx,0.,1.),c.y);}
+void main(){
+  vec2 uv=(gl_FragCoord.xy/u_res-.5)*2.*u_zoom;
+  uv.x*=u_res.x/u_res.y;
+  float t=u_time*u_speed;
+  float b=u_bass*u_sens, m=u_mid*u_sens, tr=u_treble*u_sens;
+  float wave=sin(uv.x*4.+t+b*3.)*cos(uv.y*3.+t*.8+m*2.)*.3+uv.y*.5;
+  float hue=fract(wave+t*.1+tr*.2);
+  float sat=0.7+m*.3;
+  float val=0.5+pow(abs(sin(length(uv)*5.-t*2.)),2.)*.5;
+  vec3 col=hsv2rgb(vec3(hue,sat,val));
+  float shimmer=sin(uv.x*20.+t*5.)*sin(uv.y*20.+t*3.)*.1;
+  col+=shimmer*(1.+b);
+  col*=u_bright*(1.+u_beat*.5);
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);
+}`,
+
+// 11 HYPNO — hipnosis optica con espirales
+`precision highp float;
+uniform float u_time,u_bass,u_mid,u_treble,u_beat,u_speed,u_bright,u_sens,u_zoom;
+uniform vec2 u_res;
+void main(){
+  vec2 uv=(gl_FragCoord.xy/u_res-.5)*2.*u_zoom;
+  uv.x*=u_res.x/u_res.y;
+  float t=u_time*u_speed;
+  float b=u_bass*u_sens, m=u_mid*u_sens, tr=u_treble*u_sens;
+  float r=length(uv);
+  float ang=atan(uv.y,uv.x);
+  float spiral=sin(r*8.*(1.+b*.5)-ang*3.-t*3.+m*4.)*.5+.5;
+  float hypno=sin(r*15.+t*2.+b*6.)*.5+.5;
+  float checker=sin(uv.x*12.+t)*sin(uv.y*12.+t);
+  float v=mix(spiral,hypno,abs(sin(t*.3+tr*2.)));
+  v=mix(v,checker*.5+.5,0.2);
+  vec3 col=vec3(
+    sin(v*6.28+t)*0.5+0.5,
+    sin(v*6.28+t+2.09)*0.5+0.5,
+    sin(v*6.28+t+4.19)*0.5+0.5
+  );
+  col*=u_bright*(1.+u_beat*.8)*(1.4-r*.4);
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);
+}`
+];
+
+// ─── WEBGL INIT ───────────────────────────────────────
+function initWebGL() {
+  const canvas = document.getElementById('glCanvas');
+  gl = canvas.getContext('webgl', { antialias: false, powerPreference: 'high-performance' });
+  if (!gl) { alert('WebGL no disponible'); return; }
+
+  // Quad buffer (reutilizable)
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+
+  // Compilar shaders
+  programs = SHADERS.map((fs, idx) => {
+    const prog = gl.createProgram();
+
+    const vert = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vert, VS);
+    gl.compileShader(vert);
+    if (!gl.getShaderParameter(vert, gl.COMPILE_STATUS)) {
+      console.error('VS error', gl.getShaderInfoLog(vert));
+    }
+
+    const frag = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(frag, fs);
+    gl.compileShader(frag);
+    if (!gl.getShaderParameter(frag, gl.COMPILE_STATUS)) {
+      console.error('FS error preset', idx, gl.getShaderInfoLog(frag));
+    }
+
+    gl.attachShader(prog, vert);
+    gl.attachShader(prog, frag);
+    gl.linkProgram(prog);
+
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      console.error('Link error preset', idx, gl.getProgramInfoLog(prog));
+    }
+
+    // Cache uniform locations
+    prog.locs = {
+      pos: gl.getAttribLocation(prog, 'a_pos'),
+      time: gl.getUniformLocation(prog, 'u_time'),
+      res: gl.getUniformLocation(prog, 'u_res'),
+      bass: gl.getUniformLocation(prog, 'u_bass'),
+      mid: gl.getUniformLocation(prog, 'u_mid'),
+      treble: gl.getUniformLocation(prog, 'u_treble'),
+      beat: gl.getUniformLocation(prog, 'u_beat'),
+      speed: gl.getUniformLocation(prog, 'u_speed'),
+      bright: gl.getUniformLocation(prog, 'u_bright'),
+      sens: gl.getUniformLocation(prog, 'u_sens'),
+      zoom: gl.getUniformLocation(prog, 'u_zoom'),
+    };
+
+    return prog;
+  });
+
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  console.log('%c✅ WebGL: 12 shaders compilados', 'color:#00ffaa');
+}
+
+function resizeCanvas() {
+  const canvas = document.getElementById('glCanvas');
+  const container = canvas.parentElement;
+  canvas.width = container.clientWidth;
+  canvas.height = container.clientHeight;
+  if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
+}
+
+// ─── RENDER LOOP ──────────────────────────────────────
+function renderLoop() {
+  requestAnimationFrame(renderLoop);
+  if (!gl || !analyser) return;
+
+  const now = performance.now();
+  glFrame++;
+  fpsCount++;
+  if (now - fpsLast > 500) {
+    document.getElementById('fps').textContent = Math.round(fpsCount * 1000 / (now - fpsLast)) + ' FPS';
+    fpsCount = 0; fpsLast = now;
+  }
+
+  // Audio data
+  analyser.getByteFrequencyData(frequencyData);
+  analyser.getByteTimeDomainData(timeData);
+
+  const flen = frequencyData.length;
+  let bass = 0, mid = 0, treble = 0;
+  const bassEnd = Math.floor(flen * 0.06);
+  const midEnd = Math.floor(flen * 0.25);
+  for (let i = 0; i < bassEnd; i++) bass += frequencyData[i];
+  for (let i = bassEnd; i < midEnd; i++) mid += frequencyData[i];
+  for (let i = midEnd; i < flen; i++) treble += frequencyData[i];
+  bass /= bassEnd * 255;
+  mid /= (midEnd - bassEnd) * 255;
+  treble /= (flen - midEnd) * 255;
+
+  // Beat detection
+  if (bass > lastBass + 0.15) beatValue = 1.0;
+  beatValue *= beatDecay;
+  lastBass = bass * 0.8 + lastBass * 0.2;
+
+  const sens = parseFloat(document.getElementById('visSensitivity').value);
+  const speed = parseFloat(document.getElementById('visSpeed').value);
+  const bright = parseFloat(document.getElementById('visBrightness').value);
+  const zoom = parseFloat(document.getElementById('visZoom').value);
+  const t = (now - glStartTime) / 1000;
+
+  const canvas = document.getElementById('glCanvas');
+  gl.viewport(0, 0, canvas.width, canvas.height);
+
+  const prog = programs[currentPreset];
+  if (!prog) return;
+  const l = prog.locs;
+
+  gl.useProgram(prog);
+  gl.uniform1f(l.time, t);
+  gl.uniform2f(l.res, canvas.width, canvas.height);
+  gl.uniform1f(l.bass, bass);
+  gl.uniform1f(l.mid, mid);
+  gl.uniform1f(l.treble, treble);
+  gl.uniform1f(l.beat, beatValue);
+  gl.uniform1f(l.speed, speed);
+  gl.uniform1f(l.bright, bright);
+  gl.uniform1f(l.sens, sens);
+  gl.uniform1f(l.zoom, zoom);
+
+  gl.enableVertexAttribArray(l.pos);
+  gl.vertexAttribPointer(l.pos, 2, gl.FLOAT, false, 0, 0);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  // Mini spectrum
+  drawSpectrum(bass, mid, treble);
+
+  // Audio info HUD
+  document.getElementById('audioInfo').textContent =
+    `B:${(bass*100).toFixed(0)} M:${(mid*100).toFixed(0)} T:${(treble*100).toFixed(0)} beat:${beatValue.toFixed(2)}`;
+}
+
+// ─── SPECTRUM ────────────────────────────────────────
+function drawSpectrum(bass, mid, treble) {
+  const canvas = document.getElementById('specCanvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(0, 0, w, h);
+
+  const barW = Math.max(1, w / (frequencyData.length / 4));
+  const step = Math.floor(frequencyData.length / (w / barW));
+
+  for (let i = 0; i < w / barW; i++) {
+    const val = frequencyData[i * step] / 255;
+    const barH = val * h;
+    const hue = (i / (w / barW)) * 280;
+    ctx.fillStyle = `hsl(${hue},80%,${40+val*40}%)`;
+    ctx.fillRect(i * barW, h - barH, barW - 1, barH);
+  }
+}
+
+// ─── PRESET SWITCH ───────────────────────────────────
+function setVisualPreset(n) {
+  currentPreset = n % programs.length;
+  document.getElementById('presetName').textContent = PRESET_NAMES[currentPreset];
+  // Update buttons
+  document.querySelectorAll('.preset-btn').forEach((b, i) => {
+    b.classList.toggle('active-preset', i === currentPreset);
+  });
+}
+
+// ─── AUTO CYCLE ──────────────────────────────────────
+function toggleAutoCycle() {
+  const btn = document.getElementById('autoBtn');
+  if (autoCycleInterval) {
+    clearInterval(autoCycleInterval);
+    autoCycleInterval = null;
+    btn.classList.remove('active');
+    btn.textContent = '🔄 15s';
+  } else {
+    autoCycleInterval = setInterval(() => setVisualPreset(currentPreset + 1), 15000);
+    btn.classList.add('active');
+    btn.textContent = '🔄 15s ●';
+  }
+}
+
+// ─── FULLSCREEN ───────────────────────────────────────
+function toggleFullscreen() {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+  else document.exitFullscreen();
+}
+
+// ─── INIT ─────────────────────────────────────────────
+window.addEventListener('load', async () => {
+  await initAudio();
+  initWebGL();
+  renderLoop();
+  // Activar contexto de audio al primer click
+  document.addEventListener('click', () => {
+    if (audioContext && audioContext.state === 'suspended') audioContext.resume();
+  }, { once: true });
+  console.log('%c🎛️ SynthDrop v2.0 — LISTO', 'color:#00ffaa;font-weight:bold;font-size:16px');
+});
+</script>
+</body>
+</html>
