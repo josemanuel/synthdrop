@@ -138,9 +138,10 @@ hr{border:none;border-top:1px solid var(--border);margin:7px 0}
     <div class="grid-2">
       <div>
         <label>Forma</label>
-        <select id="osc1Wave" onchange="liveUpdate()">
+        <select id="osc1Wave" onchange="onOsc1WaveChange()">
           <option value="sine">Sine</option><option value="triangle">Triangle</option>
           <option value="sawtooth" selected>Sawtooth</option><option value="square">Square</option>
+          <option value="pwm">PWM</option>
         </select>
       </div>
       <div>
@@ -150,6 +151,10 @@ hr{border:none;border-top:1px solid var(--border);margin:7px 0}
           <option value="0" selected>0</option><option value="1">+1</option><option value="2">+2</option>
         </select>
       </div>
+    </div>
+    <div id="pwm1Row" style="display:none">
+      <label>PWM Width <span class="val" id="v_pw1">50%</span></label>
+      <input type="range" id="osc1PWM" min="2" max="98" value="50" oninput="v('v_pw1',this.value+'%');liveUpdatePWM(1)">
     </div>
     <label>Detune <span class="val" id="v_d1">0</span></label>
     <input type="range" id="osc1Det" min="-1200" max="1200" value="0" oninput="v('v_d1',this.value);liveUpdate()">
@@ -163,9 +168,10 @@ hr{border:none;border-top:1px solid var(--border);margin:7px 0}
     <div class="grid-2">
       <div>
         <label>Forma</label>
-        <select id="osc2Wave" onchange="liveUpdate()">
+        <select id="osc2Wave" onchange="onOsc2WaveChange()">
           <option value="sine">Sine</option><option value="triangle" selected>Triangle</option>
           <option value="sawtooth">Sawtooth</option><option value="square">Square</option>
+          <option value="pwm">PWM</option>
         </select>
       </div>
       <div>
@@ -175,6 +181,10 @@ hr{border:none;border-top:1px solid var(--border);margin:7px 0}
           <option value="0" selected>0</option><option value="1">+1</option><option value="2">+2</option>
         </select>
       </div>
+    </div>
+    <div id="pwm2Row" style="display:none">
+      <label>PWM Width <span class="val" id="v_pw2">50%</span></label>
+      <input type="range" id="osc2PWM" min="2" max="98" value="50" oninput="v('v_pw2',this.value+'%');liveUpdatePWM(2)">
     </div>
     <label>Detune <span class="val" id="v_d2">7</span></label>
     <input type="range" id="osc2Det" min="-1200" max="1200" value="7" oninput="v('v_d2',this.value);liveUpdate()">
@@ -214,15 +224,31 @@ hr{border:none;border-top:1px solid var(--border);margin:7px 0}
   </div>
 
   <div class="module">
-    <h3>🔔 ADSR</h3>
+    <h3>🔔 ADSR — VCA</h3>
+    <canvas id="adsrVCACanvas" width="260" height="58" style="width:100%;border-radius:4px;background:#040408;margin-bottom:6px;display:block"></canvas>
     <label>Attack <span class="val" id="v_atk">10ms</span></label>
-    <input type="range" id="envAtk" min="1" max="2000" value="10" oninput="v('v_atk',this.value+'ms')">
+    <input type="range" id="envAtk" min="1" max="2000" value="10" oninput="v('v_atk',this.value+'ms');drawADSRVCA()">
     <label>Decay <span class="val" id="v_dec">200ms</span></label>
-    <input type="range" id="envDec" min="1" max="3000" value="200" oninput="v('v_dec',this.value+'ms')">
+    <input type="range" id="envDec" min="1" max="3000" value="200" oninput="v('v_dec',this.value+'ms');drawADSRVCA()">
     <label>Sustain <span class="val" id="v_sus">0.70</span></label>
-    <input type="range" id="envSus" min="0" max="1" step="0.01" value="0.70" oninput="v('v_sus',parseFloat(this.value).toFixed(2))">
+    <input type="range" id="envSus" min="0" max="1" step="0.01" value="0.70" oninput="v('v_sus',parseFloat(this.value).toFixed(2));drawADSRVCA()">
     <label>Release <span class="val" id="v_rel">400ms</span></label>
-    <input type="range" id="envRel" min="10" max="5000" value="400" oninput="v('v_rel',this.value+'ms')">
+    <input type="range" id="envRel" min="10" max="5000" value="400" oninput="v('v_rel',this.value+'ms');drawADSRVCA()">
+  </div>
+
+  <div class="module">
+    <h3>🎛 ADSR — VCF</h3>
+    <canvas id="adsrVCFCanvas" width="260" height="58" style="width:100%;border-radius:4px;background:#040408;margin-bottom:6px;display:block"></canvas>
+    <label>Amount <span class="val" id="v_fenv">+60%</span></label>
+    <input type="range" id="fenvAmt" min="-100" max="100" value="60" oninput="v('v_fenv',(this.value>0?'+':'')+this.value+'%');drawADSRVCF()">
+    <label>Attack <span class="val" id="v_fatk">5ms</span></label>
+    <input type="range" id="fenvAtk" min="1" max="2000" value="5" oninput="v('v_fatk',this.value+'ms');drawADSRVCF()">
+    <label>Decay <span class="val" id="v_fdec">300ms</span></label>
+    <input type="range" id="fenvDec" min="1" max="3000" value="300" oninput="v('v_fdec',this.value+'ms');drawADSRVCF()">
+    <label>Sustain <span class="val" id="v_fsus">0.30</span></label>
+    <input type="range" id="fenvSus" min="0" max="1" step="0.01" value="0.30" oninput="v('v_fsus',parseFloat(this.value).toFixed(2));drawADSRVCF()">
+    <label>Release <span class="val" id="v_frel">600ms</span></label>
+    <input type="range" id="fenvRel" min="10" max="5000" value="600" oninput="v('v_frel',this.value+'ms');drawADSRVCF()">
   </div>
 
   <div class="module">
@@ -383,6 +409,144 @@ hr{border:none;border-top:1px solid var(--border);margin:7px 0}
 // ══════════════════════════════════════════════════════════════
 
 function v(id,val){const e=document.getElementById(id);if(e)e.textContent=val;}
+
+// ── PWM PeriodicWave builder ──────────────────────────────────
+// PWM via additive synthesis: duty cycle d → Fourier coefficients
+// bₙ = 2·sin(n·π·d)/(n·π)  (square=50% duty, narrow pulse=small duty)
+function makePWMWave(duty) {
+  if (!AC) return null;
+  const N = 64; // number of harmonics
+  const real = new Float32Array(N);
+  const imag = new Float32Array(N);
+  real[0] = 2 * duty - 1; // DC offset → 0 for 50%
+  for (let n = 1; n < N; n++) {
+    imag[n] = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * duty);
+  }
+  return AC.createPeriodicWave(real, imag, { disableNormalization: false });
+}
+
+// Cache PWM waves per duty to avoid rebuilding every frame
+const pwmCache = {};
+function getPWMWave(duty) {
+  const key = Math.round(duty * 100);
+  if (!pwmCache[key]) pwmCache[key] = makePWMWave(duty);
+  return pwmCache[key];
+}
+
+function onOsc1WaveChange() {
+  const w = document.getElementById('osc1Wave').value;
+  document.getElementById('pwm1Row').style.display = w === 'pwm' ? 'block' : 'none';
+  liveUpdate();
+}
+function onOsc2WaveChange() {
+  const w = document.getElementById('osc2Wave').value;
+  document.getElementById('pwm2Row').style.display = w === 'pwm' ? 'block' : 'none';
+  liveUpdate();
+}
+
+// Live update PWM width on active voices
+function liveUpdatePWM(oscNum) {
+  if (!AC) return;
+  const duty = parseFloat(document.getElementById('osc'+oscNum+'PWM').value) / 100;
+  const wave = getPWMWave(duty);
+  if (!wave) return;
+  voices.forEach(vo => {
+    if (!vo.active && !vo.releasing) return;
+    const osc = oscNum === 1 ? vo.osc1 : vo.osc2;
+    if (osc) try { osc.setPeriodicWave(wave); } catch(e) {}
+  });
+}
+
+// ── ADSR canvas drawing ────────────────────────────────────────
+function drawADSR(canvasId, atk, dec, sus, rel, accent, label2) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  // Background grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let y = 0; y < H; y += H/4) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  for (let x = 0; x < W; x += W/4) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+
+  // Normalise times to pixel widths
+  const total = atk + dec + Math.max(dec*0.6, 200) + rel; // sustain = fixed visual width
+  const susWidth = Math.max(dec * 0.6, 200);
+  const scl = (W - 4) / total;
+  const pad = 2;
+  const bot = H - 3;
+  const top = 4;
+  const range = bot - top;
+
+  const xA = pad + atk * scl;
+  const xD = xA + dec * scl;
+  const xS = xD + susWidth * scl;
+  const xR = xS + rel * scl;
+
+  // Fill under curve
+  const grad = ctx.createLinearGradient(0, top, 0, bot);
+  grad.addColorStop(0, accent + '55');
+  grad.addColorStop(1, accent + '00');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(pad, bot);
+  ctx.lineTo(xA, top);
+  ctx.lineTo(xD, top + range * (1 - sus));
+  ctx.lineTo(xS, top + range * (1 - sus));
+  ctx.lineTo(xR, bot);
+  ctx.lineTo(pad, bot);
+  ctx.fill();
+
+  // Envelope line
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = accent;
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.moveTo(pad, bot);
+  ctx.lineTo(xA, top);
+  ctx.lineTo(xD, top + range * (1 - sus));
+  ctx.lineTo(xS, top + range * (1 - sus));
+  ctx.lineTo(Math.min(xR, W - pad), bot);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Dots at key points
+  const dots = [[pad, bot],[xA, top],[xD, top+range*(1-sus)],[xS, top+range*(1-sus)],[Math.min(xR,W-pad), bot]];
+  ctx.fillStyle = '#fff';
+  dots.forEach(([x,y]) => { ctx.beginPath(); ctx.arc(x,y,2.5,0,6.28); ctx.fill(); });
+
+  // Labels A D S R
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = '9px Share Tech Mono, monospace';
+  ctx.fillText('A', pad+2, H-1);
+  ctx.fillText('D', xA+2, H-1);
+  ctx.fillText('S', xD+2, H-1);
+  ctx.fillText('R', xS+2, H-1);
+  if (label2) { ctx.fillStyle = accent+'99'; ctx.font='bold 9px Share Tech Mono,monospace'; ctx.fillText(label2, W-28, 11); }
+}
+
+function drawADSRVCA() {
+  const atk = parseFloat(document.getElementById('envAtk').value);
+  const dec = parseFloat(document.getElementById('envDec').value);
+  const sus = parseFloat(document.getElementById('envSus').value);
+  const rel = parseFloat(document.getElementById('envRel').value);
+  drawADSR('adsrVCACanvas', atk, dec, sus, rel, '#00ffaa', 'VCA');
+}
+
+function drawADSRVCF() {
+  const atk = parseFloat(document.getElementById('fenvAtk').value);
+  const dec = parseFloat(document.getElementById('fenvDec').value);
+  const sus = parseFloat(document.getElementById('fenvSus').value);
+  const rel = parseFloat(document.getElementById('fenvRel').value);
+  const amt = parseFloat(document.getElementById('fenvAmt').value) / 100;
+  // Color hint: positive = accent cyan, negative = orange
+  const col = amt >= 0 ? '#00ffaa' : '#ff8833';
+  drawADSR('adsrVCFCanvas', atk, dec, sus, rel, col, (amt>=0?'+':'')+Math.round(amt*100)+'%');
+}
 
 // ── Estado global ────────────────────────────────────────────
 let AC=null, masterGain, analyser, compressor;
@@ -620,7 +784,6 @@ function killVoice(vo) {
 }
 
 // ── Trigger note ─────────────────────────────────────────────
-// FIX BUG #1: ganancia de voz normalizada — cada oscilador comparte presupuesto
 async function triggerNote(note, vel) {
   await ensureAC();
   const vo = stealVoice(note);
@@ -634,12 +797,14 @@ async function triggerNote(note, vel) {
   const det1 = parseFloat(document.getElementById('osc1Det').value);
   const mute1= document.getElementById('osc1Mute').checked;
   const vol1 = mute1 ? 0 : document.getElementById('osc1Vol').value/100;
+  const pw1  = parseFloat(document.getElementById('osc1PWM').value)/100;
 
   const w2   = document.getElementById('osc2Wave').value;
   const oct2 = parseInt(document.getElementById('osc2Oct').value);
   const det2 = parseFloat(document.getElementById('osc2Det').value);
   const mute2= document.getElementById('osc2Mute').checked;
   const vol2 = mute2 ? 0 : document.getElementById('osc2Vol').value/100;
+  const pw2  = parseFloat(document.getElementById('osc2PWM').value)/100;
   const ringOn = document.getElementById('ringOn').checked;
   const ringD  = document.getElementById('ringDepth').value/100;
 
@@ -651,19 +816,33 @@ async function triggerNote(note, vel) {
   const fFreq = parseFloat(document.getElementById('filterCutoff').value);
   const fQ    = parseFloat(document.getElementById('filterRes').value);
 
+  // VCA ADSR
   const atk = parseFloat(document.getElementById('envAtk').value)/1000;
   const dec = parseFloat(document.getElementById('envDec').value)/1000;
   const sus = parseFloat(document.getElementById('envSus').value);
 
-  // FIX BUG #1: escalar ganancia total para que N voces no saturen
-  // El compressor ayuda, pero también limitamos la ganancia de entrada
+  // VCF ADSR
+  const fAmt  = parseFloat(document.getElementById('fenvAmt').value)/100;
+  const fAtk  = parseFloat(document.getElementById('fenvAtk').value)/1000;
+  const fDec  = parseFloat(document.getElementById('fenvDec').value)/1000;
+  const fSus  = parseFloat(document.getElementById('fenvSus').value);
+
+  // Voice gain normalization (anti-distortion)
   const voiceGain = 0.5 * (1 / Math.sqrt(Math.max(1, voices.filter(x=>x.active||x.releasing).length + 1)));
 
+  // OSC 1
   const osc1 = AC.createOscillator();
-  osc1.type=w1; osc1.frequency.value=freq*Math.pow(2,oct1); osc1.detune.value=det1;
+  osc1.frequency.value = freq * Math.pow(2, oct1);
+  osc1.detune.value = det1;
+  if (w1 === 'pwm') { osc1.setPeriodicWave(getPWMWave(pw1)); }
+  else { osc1.type = w1; }
 
+  // OSC 2
   const osc2 = AC.createOscillator();
-  osc2.type=w2; osc2.frequency.value=freq*Math.pow(2,oct2); osc2.detune.value=det2;
+  osc2.frequency.value = freq * Math.pow(2, oct2);
+  osc2.detune.value = det2;
+  if (w2 === 'pwm') { osc2.setPeriodicWave(getPWMWave(pw2)); }
+  else { osc2.type = w2; }
 
   const noiseBS = AC.createBufferSource();
   noiseBS.buffer = nType==='pink'?noiseBufferPink:noiseBufferWhite;
@@ -674,7 +853,18 @@ async function triggerNote(note, vel) {
   const gNoise = AC.createGain(); gNoise.gain.value=volN*voiceGain;
 
   const filter = AC.createBiquadFilter();
-  filter.type=fType; filter.frequency.value=fFreq; filter.Q.value=fQ;
+  filter.type=fType; filter.Q.value=fQ;
+
+  // VCF ADSR — modula filter.frequency
+  // Rango de modulación: fFreq ± (fAmt * fFreq) para positivo,
+  //                      fFreq * (1 + fAmt) para negativo (cierra filtro)
+  const fPeak = fFreq + fAmt * fFreq * 3;   // peak = cutoff + amount*3x para rango amplio
+  const fBase = fFreq;
+  const fSusFreq = fBase + (fPeak - fBase) * fSus;
+  filter.frequency.setValueAtTime(fBase, now);
+  filter.frequency.linearRampToValueAtTime(Math.max(20, Math.min(20000, fPeak)), now + fAtk);
+  filter.frequency.linearRampToValueAtTime(Math.max(20, Math.min(20000, fSusFreq)), now + fAtk + fDec);
+  // sustain value held until noteOff
 
   const gVCA = AC.createGain();
   gVCA.gain.setValueAtTime(0, now);
@@ -699,6 +889,8 @@ async function triggerNote(note, vel) {
 
   vo.osc1=osc1; vo.osc2=osc2; vo.noiseBS=noiseBS;
   vo.g1=g1; vo.g2=g2; vo.gNoise=gNoise; vo.filter=filter; vo.gVCA=gVCA;
+  // Store VCF ADSR release params for noteOff
+  vo.fBase=fBase; vo.fSusFreq=fSusFreq;
   vo.active=true; vo.releasing=false; vo.note=note;
 
   beatVal=1.0;
@@ -707,23 +899,33 @@ async function triggerNote(note, vel) {
   logM(`NoteON  ${note} (${NNAMES[note%12]}) vel:${vel}`,'non');
 }
 
-// FIX BUG #2: releaseNote NO marca active=false; usa releaseId para
-// que el setTimeout no mate una voz que ya fue reutilizada
 function releaseNote(note) {
   const vo = voices.find(v=>v.active && v.note===note);
   if (!vo||!vo.gVCA) return;
-  const rel = parseFloat(document.getElementById('envRel').value)/1000;
+  const rel  = parseFloat(document.getElementById('envRel').value)/1000;
+  const fRel = parseFloat(document.getElementById('fenvRel').value)/1000;
   const now = AC.currentTime;
+
+  // VCA release
   vo.gVCA.gain.cancelScheduledValues(now);
   vo.gVCA.gain.setValueAtTime(vo.gVCA.gain.value, now);
   vo.gVCA.gain.linearRampToValueAtTime(0, now+rel);
-  vo.active=false;    // disponible para robar
-  vo.releasing=true;  // pero sigue sonando el release
+
+  // VCF release — return to base cutoff
+  if (vo.filter && vo.fBase !== undefined) {
+    const fFreq = parseFloat(document.getElementById('filterCutoff').value);
+    vo.filter.frequency.cancelScheduledValues(now);
+    vo.filter.frequency.setValueAtTime(vo.filter.frequency.value, now);
+    vo.filter.frequency.linearRampToValueAtTime(Math.max(20, fFreq), now+fRel);
+  }
+
+  vo.active=false;
+  vo.releasing=true;
   const myId = ++vo.releaseId;
   const ref = vo;
   setTimeout(()=>{
-    if(ref.releaseId===myId) killVoice(ref); // solo matar si nadie la robó
-  }, (rel+0.12)*1000);
+    if(ref.releaseId===myId) killVoice(ref);
+  }, (Math.max(rel,fRel)+0.15)*1000);
   logM(`NoteOFF ${note}`,'nof');
 }
 
@@ -749,14 +951,22 @@ function liveUpdate(){
   const det2=parseFloat(document.getElementById('osc2Det').value);
   const w1=document.getElementById('osc1Wave').value;
   const w2=document.getElementById('osc2Wave').value;
+  const pw1=parseFloat(document.getElementById('osc1PWM').value)/100;
+  const pw2=parseFloat(document.getElementById('osc2PWM').value)/100;
   voices.forEach(vo=>{
     if(!vo.active&&!vo.releasing)return;
-    if(vo.filter){vo.filter.frequency.value=fFreq;vo.filter.Q.value=fQ;vo.filter.type=fType;}
+    if(vo.filter){
+      vo.filter.Q.value=fQ;
+      vo.filter.type=fType;
+      // Only update freq directly if VCF env amount is zero
+      const fAmt=parseFloat(document.getElementById('fenvAmt').value)/100;
+      if(Math.abs(fAmt)<0.01) vo.filter.frequency.value=fFreq;
+    }
     if(vo.g1)vo.g1.gain.value=vol1;
     if(vo.g2)vo.g2.gain.value=vol2;
     if(vo.gNoise)vo.gNoise.gain.value=volN;
-    if(vo.osc1){vo.osc1.detune.value=det1;try{vo.osc1.type=w1;}catch(e){}}
-    if(vo.osc2){vo.osc2.detune.value=det2;try{vo.osc2.type=w2;}catch(e){}}
+    if(vo.osc1){vo.osc1.detune.value=det1; if(w1==='pwm'){try{vo.osc1.setPeriodicWave(getPWMWave(pw1));}catch(e){}}else{try{vo.osc1.type=w1;}catch(e){}} }
+    if(vo.osc2){vo.osc2.detune.value=det2; if(w2==='pwm'){try{vo.osc2.setPeriodicWave(getPWMWave(pw2));}catch(e){}}else{try{vo.osc2.type=w2;}catch(e){}} }
   });
 }
 
@@ -1362,6 +1572,8 @@ window.addEventListener('load',()=>{
   initGL();
   renderLoop();
   buildLUTGrid();
+  drawADSRVCA();
+  drawADSRVCF();
   document.addEventListener('pointerdown',()=>ensureAC(),{once:true});
   console.log('%c🎛️ SynthDrop v4 — LISTO','color:#00ffaa;font-weight:bold;font-size:14px');
 });
