@@ -93,12 +93,13 @@ hr{border:none;border-top:1px solid var(--border);margin:7px 0}
 .lut-name{font-size:9px;color:var(--dim);text-align:center;margin-top:2px;font-family:'Share Tech Mono',monospace}
 
 /* ── Virtual Keyboard ── */
-#vKeyboard{position:relative;height:68px;background:#080810;border-top:1px solid var(--border);flex-shrink:0;overflow:hidden;user-select:none}
+#vKeyboard{position:relative;height:90px;background:#080810;border-top:1px solid var(--border);flex-shrink:0;overflow:hidden;user-select:none;transition:height .22s ease}
+#vKeyboard.collapsed{height:0;border-top:none}
 .vk-wrap{position:relative;height:100%;display:flex;justify-content:center;align-items:flex-start;padding-top:2px}
-.vk-white{position:relative;width:28px;height:64px;background:linear-gradient(180deg,#e8e8f0 0%,#fff 60%);border:1px solid #444;border-radius:0 0 3px 3px;cursor:pointer;box-sizing:border-box;flex-shrink:0;transition:background .05s}
+.vk-white{position:relative;width:26px;height:86px;background:linear-gradient(180deg,#e8e8f0 0%,#fff 60%);border:1px solid #444;border-radius:0 0 3px 3px;cursor:pointer;box-sizing:border-box;flex-shrink:0;transition:background .05s}
 .vk-white:hover{background:linear-gradient(180deg,#c8e8ff 0%,#ddf 60%)}
 .vk-white.pressed{background:linear-gradient(180deg,#00ffaa 0%,#00cc88 60%) !important}
-.vk-black{position:absolute;width:18px;height:40px;background:linear-gradient(180deg,#1a1a2e 0%,#0a0a16 100%);border:1px solid #000;border-radius:0 0 3px 3px;cursor:pointer;z-index:2;top:2px;transition:background .05s}
+.vk-black{position:absolute;width:16px;height:52px;background:linear-gradient(180deg,#1a1a2e 0%,#0a0a16 100%);border:1px solid #000;border-radius:0 0 3px 3px;cursor:pointer;z-index:2;top:2px;transition:background .05s}
 .vk-black:hover{background:linear-gradient(180deg,#223 0%,#112 100%)}
 .vk-black.pressed{background:linear-gradient(180deg,#00aa77 0%,#006644 100%) !important}
 .vk-oct-label{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);font-size:7px;color:#555;font-family:'Share Tech Mono',monospace;pointer-events:none}
@@ -309,6 +310,16 @@ hr{border:none;border-top:1px solid var(--border);margin:7px 0}
     <input type="range" id="revDecay" min="0.3" max="8" step="0.1" value="2.8" oninput="v('v_rvd',this.value+'s');rebuildIR()">
     <label>Reverb Mix <span class="val" id="v_rvm">30%</span></label>
     <input type="range" id="revMix" min="0" max="100" value="30" oninput="v('v_rvm',this.value+'%');applyFX()">
+    <hr>
+    <button onclick="toggleChorus()" id="chorusBtn" style="width:100%;margin-bottom:7px">🎙 CHORUS OFF</button>
+    <label>Rate <span class="val" id="v_chr">0.5Hz</span></label>
+    <input type="range" id="chorusRate" min="0.1" max="8" step="0.1" value="0.5" oninput="v('v_chr',this.value+'Hz');applyChorus()">
+    <label>Depth <span class="val" id="v_chd">3ms</span></label>
+    <input type="range" id="chorusDepth" min="0.5" max="15" step="0.5" value="3" oninput="v('v_chd',this.value+'ms');applyChorus()">
+    <label>Delay Base <span class="val" id="v_chdl">10ms</span></label>
+    <input type="range" id="chorusDelay" min="1" max="30" step="0.5" value="10" oninput="v('v_chdl',this.value+'ms');applyChorus()">
+    <label>Mix <span class="val" id="v_chm">40%</span></label>
+    <input type="range" id="chorusMix" min="0" max="100" value="40" oninput="v('v_chm',this.value+'%');applyChorus()">
   </div>
 
   <div class="module">
@@ -379,6 +390,9 @@ hr{border:none;border-top:1px solid var(--border);margin:7px 0}
       <button class="preset-btn" onclick="setPreset(13)">🕳 3D Tunnel</button>
       <button class="preset-btn" onclick="setPreset(14)">⚡ God Rays</button>
       <button class="preset-btn" onclick="setPreset(15)">🌅 Aurora</button>
+      <button class="preset-btn" onclick="setPreset(16)">🔮 3D Sphere</button>
+      <button class="preset-btn" onclick="setPreset(17)">🍩 3D Torus</button>
+      <button class="preset-btn" onclick="setPreset(18)">🫧 3D Blobs</button>
     </div>
   </div>
 
@@ -412,7 +426,10 @@ hr{border:none;border-top:1px solid var(--border);margin:7px 0}
 
 <div class="footer">
   <div>SYNTHDROP v5 • 16 WebGL Presets • MIDI • Arpegiador Latch • Teclado Virtual</div>
-  <div id="fps">— FPS</div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button onclick="toggleKeyboard()" id="kbdToggleBtn" style="padding:2px 8px;font-size:10px" title="Mostrar/ocultar teclado">🎹 Teclado</button>
+    <div id="fps">— FPS</div>
+  </div>
 </div>
 
 <!-- ═══ VIRTUAL KEYBOARD ═══ -->
@@ -584,6 +601,8 @@ function drawADSRVCF() {
 // ── Estado global ────────────────────────────────────────────
 let AC=null, masterGain, analyser, compressor;
 let delayIn,delayNode,delayFBGain,delayWet,pingDelay,pingWet,reverbConv,reverbWet,dryPass;
+// Chorus nodes
+let chorusEnabled=false, chorusDelay, chorusLFO, chorusLFOGain, chorusWetGain, chorusDryGain;
 let fxEnabled=false;
 let noiseBufferPink, noiseBufferWhite;
 
@@ -619,7 +638,7 @@ let autoCycleTimer=null;
 // Panel visibility
 let synthVisible=true, visVisible=true;
 
-const PNAMES=['PLASMA','TUNNEL','FIREWORKS','MANDALA','JULIA','OCEAN','INFERNO','NEBULA','VORTEX','ORBS','ACID','HYPNO','MANDELBROT','3D TUNNEL','GOD RAYS','AURORA'];
+const PNAMES=['PLASMA','TUNNEL','FIREWORKS','MANDALA','JULIA','OCEAN','INFERNO','NEBULA','VORTEX','ORBS','ACID','HYPNO','MANDELBROT','3D TUNNEL','GOD RAYS','AURORA','3D SPHERE','3D TORUS','3D BLOBS'];
 const NNAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
 // ── LUT multicolor — paletas de 4 puntos con ciclo HSV completo ──
@@ -719,8 +738,42 @@ function buildAudioGraph() {
 
   dryPass = AC.createGain(); dryPass.gain.value=1;
 
-  // Chain sin FX: masterGain → compressor → analyser → destination
-  masterGain.connect(compressor);
+  // ── Chorus (before masterGain in the chain) ────────────────
+  // Architecture: voiceVCA → masterGain → [chorusDry + chorusDelay] → compressor
+  // The chorus is a parallel wet/dry mix using a LFO-modulated delay.
+  // chorusDryGain and chorusWetGain both connect to compressor.
+  // When chorus is off, chorusWetGain.gain=0 and chorusDryGain.gain=1.
+  chorusDelay   = AC.createDelay(0.05);   // max 50ms
+  chorusDelay.delayTime.value = 0.010;    // 10ms base
+
+  chorusLFO     = AC.createOscillator();
+  chorusLFO.type = 'sine';
+  chorusLFO.frequency.value = 0.5;        // 0.5 Hz rate
+
+  chorusLFOGain = AC.createGain();
+  chorusLFOGain.gain.value = 0.003;       // 3ms depth (off by default)
+
+  chorusWetGain = AC.createGain();
+  chorusWetGain.gain.value = 0;           // chorus off by default
+
+  chorusDryGain = AC.createGain();
+  chorusDryGain.gain.value = 1;           // dry pass-through
+
+  // LFO modulates the delay time
+  chorusLFO.connect(chorusLFOGain);
+  chorusLFOGain.connect(chorusDelay.delayTime);
+  chorusLFO.start();
+
+  // masterGain forks into dry and wet chorus paths
+  // Both paths go to compressor (wired below after compressor creation)
+  // This wiring is permanent — gain values control on/off
+  masterGain.connect(chorusDryGain);
+  masterGain.connect(chorusDelay);
+  chorusDelay.connect(chorusWetGain);
+
+  // Chain sin FX: chorusDry + chorusWet → compressor → analyser → destination
+  chorusDryGain.connect(compressor);
+  chorusWetGain.connect(compressor);
   compressor.connect(analyser);
   analyser.connect(AC.destination);
 
@@ -782,15 +835,29 @@ function toggleFX(){
 }
 function rewireFX(){
   if(!AC)return;
-  [masterGain,compressor,dryPass,delayIn,delayWet,pingWet,reverbWet,analyser].forEach(n=>{try{n.disconnect();}catch(e){}});
+  // Desconectamos sólo los nodos de salida/entrada que cambian según bypass.
+  // IMPORTANTE: NO desconectamos delayIn, delayFBGain, delayNode, pingDelay
+  // porque sus conexiones internas (delayIn→delayNode, feedback loop,
+  // delayNode→pingDelay) son permanentes y se construyeron en buildAudioGraph().
+  // Desconectarlos rompería la cadena interna del delay (ese era el bug).
+  // IMPORTANTE: tampoco desconectamos los nodos de chorus (chorusDryGain,
+  // chorusWetGain, chorusDelay) porque usan bypass por ganancia, no por rewiring.
+  [dryPass,delayWet,pingWet,reverbWet,analyser].forEach(n=>{try{n.disconnect();}catch(e){}});
+  // También reconectar compressor→analyser que puede haber perdido destino
+  try{compressor.disconnect();}catch(e){}
   if(fxEnabled){
+    // El delay y reverb reciben señal desde masterGain.
+    // masterGain ya está conectado a chorusDry/chorusDelay permanentemente.
+    // Para delay/reverb añadimos rutas paralelas desde masterGain:
     masterGain.connect(dryPass); dryPass.connect(compressor);
-    masterGain.connect(delayIn); delayWet.connect(compressor);
+    masterGain.connect(delayIn); // delayIn→delayNode ya está conectado permanentemente
+    delayWet.connect(compressor);
     masterGain.connect(reverbConv); reverbWet.connect(compressor);
     if(document.getElementById('pingPong').checked) pingWet.connect(compressor);
-  } else {
-    masterGain.connect(compressor);
   }
+  // Chorus siempre conectado (chorusDryGain.gain + chorusWetGain.gain controlan nivel)
+  chorusDryGain.connect(compressor);
+  chorusWetGain.connect(compressor);
   compressor.connect(analyser);
   analyser.connect(AC.destination);
   applyFX();
@@ -803,6 +870,28 @@ function applyFX(){
   reverbWet.gain.value=fxEnabled?parseFloat(document.getElementById('revMix').value)/100:0;
   pingDelay.delayTime.value=parseFloat(document.getElementById('delayTime').value)/1000*0.7;
   pingWet.gain.value=fxEnabled&&document.getElementById('pingPong').checked?0.45:0;
+}
+
+// ── Chorus ────────────────────────────────────────────────────
+function toggleChorus(){
+  chorusEnabled=!chorusEnabled;
+  const btn=document.getElementById('chorusBtn');
+  btn.style.cssText=chorusEnabled
+    ?'width:100%;margin-bottom:7px;background:rgba(0,255,170,0.14);border-color:var(--accent);color:var(--accent)'
+    :'width:100%;margin-bottom:7px';
+  btn.textContent=chorusEnabled?'🎙 CHORUS ON':'🎙 CHORUS OFF';
+  applyChorus();
+}
+
+function applyChorus(){
+  if(!chorusDelay) return;
+  chorusLFO.frequency.value    = parseFloat(document.getElementById('chorusRate').value);
+  chorusLFOGain.gain.value     = chorusEnabled ? parseFloat(document.getElementById('chorusDepth').value)/1000 : 0;
+  chorusDelay.delayTime.value  = parseFloat(document.getElementById('chorusDelay').value)/1000;
+  const mix = chorusEnabled ? parseFloat(document.getElementById('chorusMix').value)/100 : 0;
+  chorusWetGain.gain.value = mix;
+  // Keep dry at 1 always — no ducking of dry signal
+  chorusDryGain.gain.value = 1;
 }
 
 // ── Voice pool ────────────────────────────────────────────────
@@ -1654,6 +1743,197 @@ void main(){
   vec3 sky=colorize(.8+tr*.1,t*.02)*(.05+tr*.1);
   vec3 c=aurora+sky+star*colorize(hsh(floor(uv*60.))*.6,0.);
   gl_FragColor=vec4(clamp(c*BR*(1.+BT*.5),0.,1.),1.);}`,
+
+// 16 3D SPHERE — esfera raymarched con ondas reactivas al audio
+LUT_HEADER+`
+float sdSphere(vec3 p,float r){return length(p)-r;}
+
+vec3 calcNormal(vec3 p,float t,float b,float m){
+  float e=.002;
+  float r=.5+b*.2;
+  float d1=sdSphere(p+vec3(e,0,0),r+sin(p.y*8.+t)*b*.15+sin(p.z*6.+t*.7)*m*.1)-sdSphere(p-vec3(e,0,0),r+sin(p.y*8.+t)*b*.15+sin(p.z*6.+t*.7)*m*.1);
+  float d2=sdSphere(p+vec3(0,e,0),r+sin(p.x*8.+t)*b*.15+sin(p.z*6.+t*.7)*m*.1)-sdSphere(p-vec3(0,e,0),r+sin(p.x*8.+t)*b*.15+sin(p.z*6.+t*.7)*m*.1);
+  float d3=sdSphere(p+vec3(0,0,e),r+sin(p.x*8.+t)*b*.15+sin(p.y*6.+t*.7)*m*.1)-sdSphere(p-vec3(0,0,e),r+sin(p.x*8.+t)*b*.15+sin(p.y*6.+t*.7)*m*.1);
+  return normalize(vec3(d1,d2,d3));
+}
+
+float sceneSDF(vec3 p,float t,float b,float m){
+  float r=.5+b*.2;
+  float waves=sin(p.x*8.+t*1.5)*sin(p.y*8.+t*1.2)*sin(p.z*6.+t)*b*.12
+             +sin(p.x*14.-t*2.)*m*.06;
+  return sdSphere(p,r+waves);
+}
+
+void main(){
+  vec2 uv=(gl_FragCoord.xy/R-.5)*2.*ZM;uv.x*=R.x/R.y;
+  float t=T*SP,b=B*SN,m=M*SN,tr=TR*SN;
+
+  // Camera orbit
+  float camAng=t*.25+b*.5;
+  vec3 ro=vec3(cos(camAng)*1.8,sin(t*.15)*0.4,sin(camAng)*1.8);
+  vec3 target=vec3(0.);
+  vec3 fwd=normalize(target-ro);
+  vec3 right=normalize(cross(fwd,vec3(0,1,0)));
+  vec3 up=cross(right,fwd);
+  vec3 rd=normalize(fwd+uv.x*right+uv.y*up);
+
+  // Raymarch
+  float dist=0.;
+  bool hit=false;
+  for(int i=0;i<64;i++){
+    float d=sceneSDF(ro+rd*dist,t,b,m);
+    if(d<.001){hit=true;break;}
+    if(dist>6.)break;
+    dist+=d*.8;
+  }
+
+  if(!hit){
+    // Background: subtle space
+    float bg=length(uv)*.3;
+    gl_FragColor=vec4(colorize(bg*.2,t*.02)*0.15*BR,1.);
+    return;
+  }
+
+  vec3 pos=ro+rd*dist;
+  vec3 nor=calcNormal(pos,t,b,m);
+
+  // Lighting: key + rim + ambient
+  vec3 lightDir=normalize(vec3(cos(t*.4),sin(t*.3)+.5,sin(t*.4)));
+  float diff=max(dot(nor,lightDir),0.);
+  float rim=pow(1.-max(dot(-rd,nor),0.),.8+tr*.5);
+  float ao=1.-.3*max(0.,sceneSDF(pos+nor*.1,t,b,m)*10.);
+
+  // Color: surface position → LUT hue
+  float hue=fract(atan(pos.y,pos.x)/(2.*3.14159)+t*.05+b*.1);
+  vec3 col=colorize(hue,t*.04)*(diff*.8+.2)*ao+rim*colorize(hue+.3,t*.06)*(tr+.3);
+  col*=1.+BT*1.2;
+
+  gl_FragColor=vec4(clamp(col*BR,0.,1.),1.);}`,
+
+// 17 3D TORUS — toro raymarched hipnótico
+LUT_HEADER+`
+float sdTorus(vec3 p,vec2 t2){vec2 q=vec2(length(p.xz)-t2.x,p.y);return length(q)-t2.y;}
+
+float sceneTorus(vec3 p,float t,float b,float m){
+  // Twist the torus
+  float twist=p.y*3.+t*.8;
+  vec3 rp=vec3(p.x*cos(twist)-p.z*sin(twist),p.y,p.x*sin(twist)+p.z*cos(twist));
+  float rad=.55+b*.12;
+  float tube=.18+m*.06+sin(atan(p.z,p.x)*8.+t*2.)*b*.04;
+  return sdTorus(rp,vec2(rad,tube));
+}
+
+vec3 calcNormalTorus(vec3 p,float t,float b,float m){
+  float e=.002;
+  return normalize(vec3(
+    sceneTorus(p+vec3(e,0,0),t,b,m)-sceneTorus(p-vec3(e,0,0),t,b,m),
+    sceneTorus(p+vec3(0,e,0),t,b,m)-sceneTorus(p-vec3(0,e,0),t,b,m),
+    sceneTorus(p+vec3(0,0,e),t,b,m)-sceneTorus(p-vec3(0,0,e),t,b,m)
+  ));
+}
+
+void main(){
+  vec2 uv=(gl_FragCoord.xy/R-.5)*2.*ZM;uv.x*=R.x/R.y;
+  float t=T*SP,b=B*SN,m=M*SN,tr=TR*SN;
+
+  float camPitch=sin(t*.18)*.4;
+  float camYaw=t*.22;
+  vec3 ro=vec3(cos(camYaw)*1.6,sin(camPitch)*1.2,sin(camYaw)*1.6);
+  vec3 fwd=normalize(-ro);
+  vec3 right=normalize(cross(fwd,vec3(0,1,0)));
+  vec3 up=cross(right,fwd);
+  vec3 rd=normalize(fwd+uv.x*right+uv.y*up);
+
+  float dist=0.;bool hit=false;
+  for(int i=0;i<72;i++){
+    float d=sceneTorus(ro+rd*dist,t,b,m);
+    if(d<.001){hit=true;break;}
+    if(dist>5.)break;
+    dist+=d*.75;
+  }
+
+  if(!hit){
+    float bg=sin(uv.x*6.+t)*sin(uv.y*5.+t*.7)*.5+.5;
+    gl_FragColor=vec4(colorize(bg*.15,t*.03)*0.12*BR,1.);
+    return;
+  }
+
+  vec3 pos=ro+rd*dist;
+  vec3 nor=calcNormalTorus(pos,t,b,m);
+  vec3 lightDir=normalize(vec3(sin(t*.5),cos(t*.3),.8));
+  float diff=max(dot(nor,lightDir),0.);
+  float spec=pow(max(dot(reflect(-lightDir,nor),-rd),0.),20.+tr*30.);
+  float rim=pow(1.-abs(dot(-rd,nor)),2.)*(1.+BT);
+
+  float hue=fract(atan(pos.z,pos.x)/(2.*3.14159)+t*.07+b*.15);
+  vec3 col=colorize(hue,t*.05)*(diff*.7+.25)+spec*.8*colorize(hue+.5,t*.06)+rim*.4*colorize(hue+.25,t*.08);
+  col*=(1.+BT*1.5);
+
+  gl_FragColor=vec4(clamp(col*BR,0.,1.),1.);}`,
+
+// 18 3D BLOBS — metaballs/isosurface raymarched
+LUT_HEADER+`
+float blob(vec3 p,vec3 c,float r){float d=length(p-c);return r*r/(d*d+.0001);}
+
+float sceneBlobs(vec3 p,float t,float b,float m){
+  // 4 metaballs orbiting each other, audio-reactive positions
+  float s=.8+b*.3;
+  vec3 p0=vec3(cos(t*.7)*s,sin(t*.5)*.4,sin(t*.7)*s);
+  vec3 p1=vec3(cos(t*.5+2.09)*s*(.8+m*.3),sin(t*.8+1.)*(.3+b*.2),sin(t*.5+2.09)*s);
+  vec3 p2=vec3(cos(t*.6+4.18)*s*.9,sin(t*.4+2.)*(.5+m*.2),sin(t*.6+4.18)*s*.9);
+  vec3 p3=vec3(sin(t*.4)*(.4+tr*.3),cos(t*.9)*.6,cos(t*.4)*.5);
+  float field=blob(p,p0,.3+b*.1)+blob(p,p1,.28+m*.08)+blob(p,p2,.25+tr*.06)+blob(p,p3,.22+BT*.15);
+  return 1.-field;  // isosurface at field=1
+}
+
+vec3 normalBlobs(vec3 p,float t,float b,float m){
+  float e=.004;
+  return normalize(vec3(
+    sceneBlobs(p+vec3(e,0,0),t,b,m)-sceneBlobs(p-vec3(e,0,0),t,b,m),
+    sceneBlobs(p+vec3(0,e,0),t,b,m)-sceneBlobs(p-vec3(0,e,0),t,b,m),
+    sceneBlobs(p+vec3(0,0,e),t,b,m)-sceneBlobs(p-vec3(0,0,e),t,b,m)
+  ));
+}
+
+void main(){
+  vec2 uv=(gl_FragCoord.xy/R-.5)*2.*ZM;uv.x*=R.x/R.y;
+  float t=T*SP,b=B*SN,m=M*SN,tr=TR*SN;
+
+  float camA=t*.2;
+  vec3 ro=vec3(cos(camA)*2.2,sin(t*.12)*.6,sin(camA)*2.2);
+  vec3 fwd=normalize(-ro+vec3(0,sin(t*.08)*.2,0));
+  vec3 right=normalize(cross(fwd,vec3(0,1,0)));
+  vec3 up=cross(right,fwd);
+  vec3 rd=normalize(fwd+uv.x*right+uv.y*up);
+
+  float dist=0.;bool hit=false;
+  for(int i=0;i<56;i++){
+    float d=sceneBlobs(ro+rd*dist,t,b,m);
+    if(d<.005){hit=true;break;}
+    if(dist>6.)break;
+    dist+=d*.5;
+  }
+
+  if(!hit){
+    float bg=length(uv)*.2+sin(uv.x*4.+t)*sin(uv.y*3.+t*.7)*.1+.1;
+    gl_FragColor=vec4(colorize(bg,t*.025)*0.1*BR,1.);
+    return;
+  }
+
+  vec3 pos=ro+rd*dist;
+  vec3 nor=normalBlobs(pos,t,b,m);
+  vec3 lightA=normalize(vec3(cos(t*.6),1.,sin(t*.6)));
+  vec3 lightB=normalize(vec3(-cos(t*.4),-0.5,-sin(t*.4)));
+  float diffA=max(dot(nor,lightA),0.);
+  float diffB=max(dot(nor,lightB),0.)*.4;
+  float fresnel=pow(1.-abs(dot(rd,nor)),2.5);
+
+  // Color based on position → creates smooth multicolor blending
+  float hue=fract(atan(pos.y,length(pos.xz))/(3.14159)+t*.06+b*.12);
+  vec3 col=colorize(hue,t*.04)*(diffA+diffB+.2)+fresnel*colorize(hue+.4,t*.07)*(1.+BT);
+  col*=(1.+BT*.8);
+
+  gl_FragColor=vec4(clamp(col*BR,0.,1.),1.);}`,
 ];
 
 // ── WebGL ─────────────────────────────────────────────────────
@@ -1784,37 +2064,42 @@ function toggleFullscreen(){
 }
 
 // ══════════════════════════════════════════════════════
-//  TECLADO VIRTUAL
+//  TECLADO VIRTUAL — 3 octavas
 // ══════════════════════════════════════════════════════
-let vkBaseOct = 4;  // octava base (C4 = MIDI 60)
+let vkBaseOct = 3;  // octava base (C3–C6 por defecto)
+let kbdVisible = true;
+
+// 3 octavas completas + nota final C
 const VK_LAYOUT = [
-  // [semitone, isBlack, blackOffset]
-  {s:0,b:false},{s:1,b:true,o:17},{s:2,b:false},{s:3,b:true,o:45},{s:4,b:false},
-  {s:5,b:false},{s:6,b:true,o:101},{s:7,b:false},{s:8,b:true,o:129},{s:9,b:false},{s:10,b:true,o:157},{s:11,b:false},
-  // 2nd octave
-  {s:12,b:false},{s:13,b:true,o:17+168},{s:14,b:false},{s:15,b:true,o:45+168},{s:16,b:false},
-  {s:17,b:false},{s:18,b:true,o:101+168},{s:19,b:false},{s:20,b:true,o:129+168},{s:21,b:false},{s:22,b:true,o:157+168},{s:23,b:false},
-  // extra C
-  {s:24,b:false}
+  // Octava 0 relativa (semitone 0-11)
+  {s:0,b:false},{s:1,b:true},{s:2,b:false},{s:3,b:true},{s:4,b:false},
+  {s:5,b:false},{s:6,b:true},{s:7,b:false},{s:8,b:true},{s:9,b:false},{s:10,b:true},{s:11,b:false},
+  // Octava 1 relativa (semitone 12-23)
+  {s:12,b:false},{s:13,b:true},{s:14,b:false},{s:15,b:true},{s:16,b:false},
+  {s:17,b:false},{s:18,b:true},{s:19,b:false},{s:20,b:true},{s:21,b:false},{s:22,b:true},{s:23,b:false},
+  // Octava 2 relativa (semitone 24-35)
+  {s:24,b:false},{s:25,b:true},{s:26,b:false},{s:27,b:true},{s:28,b:false},
+  {s:29,b:false},{s:30,b:true},{s:31,b:false},{s:32,b:true},{s:33,b:false},{s:34,b:true},{s:35,b:false},
+  // Nota final C
+  {s:36,b:false}
 ];
+
+// White key width in pixels — must match CSS .vk-white width (26px)
+const VK_WHITE_W = 26;
 
 function buildVirtualKeyboard(){
   const wrap=document.getElementById('vkWrap');
   wrap.innerHTML='';
   const whites=VK_LAYOUT.filter(k=>!k.b);
-  const blacks=VK_LAYOUT.filter(k=>k.b);
 
-  // White keys container
   const wContainer=document.createElement('div');
   wContainer.style.cssText='position:relative;display:flex;';
   wrap.appendChild(wContainer);
 
-  let wIdx=0;
-  whites.forEach((k,wi)=>{
+  whites.forEach((k)=>{
     const el=document.createElement('div');
     el.className='vk-white';
     el.dataset.semi=k.s;
-    // Add octave label at C
     if(k.s%12===0){
       const lbl=document.createElement('div');
       lbl.className='vk-oct-label';
@@ -1825,14 +2110,14 @@ function buildVirtualKeyboard(){
     setupVKKey(el);
   });
 
-  // Black keys — positioned absolutely over whites
-  blacks.forEach(k=>{
+  // Black keys — positioned absolutely based on white key count before them
+  VK_LAYOUT.filter(k=>k.b).forEach(k=>{
     const el=document.createElement('div');
     el.className='vk-black';
     el.dataset.semi=k.s;
-    // Calculate left offset: each white key is 28px wide
     const whitesBefore=VK_LAYOUT.filter(x=>!x.b&&x.s<k.s).length;
-    el.style.left=(whitesBefore*28-9)+'px';
+    // Centre black key between the two white keys it bridges
+    el.style.left=(whitesBefore*VK_WHITE_W - Math.floor(VK_WHITE_W*0.35))+'px';
     wContainer.appendChild(el);
     setupVKKey(el);
   });
@@ -1841,7 +2126,7 @@ function buildVirtualKeyboard(){
 function setupVKKey(el){
   const getMIDI=()=>{
     const semi=parseInt(el.dataset.semi);
-    return (vkBaseOct+Math.floor(semi/12))*12+semi%12;
+    return (vkBaseOct+Math.floor(semi/12))*12+(semi%12);
   };
   const vel=()=>parseInt(document.getElementById('vkVel').value);
 
@@ -1869,9 +2154,20 @@ function setupVKKey(el){
 }
 
 function vkShiftOct(dir){
-  vkBaseOct=Math.max(0,Math.min(8,vkBaseOct+dir));
+  vkBaseOct=Math.max(0,Math.min(6,vkBaseOct+dir));
   document.getElementById('vkOctDisp').textContent=vkBaseOct;
   buildVirtualKeyboard();
+}
+
+function toggleKeyboard(){
+  kbdVisible=!kbdVisible;
+  const kb=document.getElementById('vKeyboard');
+  kb.classList.toggle('collapsed',!kbdVisible);
+  const btn=document.getElementById('kbdToggleBtn');
+  btn.classList.toggle('active',kbdVisible);
+  btn.title=kbdVisible?'Ocultar teclado':'Mostrar teclado';
+  // Forzar reflow del canvas WebGL después de la transición CSS
+  setTimeout(resizeGL, 240);
 }
 
 // ── Init ──────────────────────────────────────────────────────
@@ -1880,6 +2176,8 @@ window.addEventListener('load',()=>{
   renderLoop();
   buildLUTGrid();
   buildVirtualKeyboard();
+  document.getElementById('vkOctDisp').textContent=vkBaseOct;
+  document.getElementById('kbdToggleBtn').classList.add('active'); // keyboard visible by default
   drawADSRVCA();
   drawADSRVCF();
   document.addEventListener('pointerdown',()=>ensureAC(),{once:true});
