@@ -95,11 +95,12 @@ hr{border:none;border-top:1px solid var(--border);margin:7px 0}
 /* ── Virtual Keyboard ── */
 #vKeyboard{position:relative;height:90px;background:#080810;border-top:1px solid var(--border);flex-shrink:0;overflow:hidden;user-select:none;transition:height .22s ease}
 #vKeyboard.collapsed{height:0;border-top:none}
-.vk-wrap{position:relative;height:100%;display:flex;justify-content:center;align-items:flex-start;padding-top:2px}
-.vk-white{position:relative;width:26px;height:86px;background:linear-gradient(180deg,#e8e8f0 0%,#fff 60%);border:1px solid #444;border-radius:0 0 3px 3px;cursor:pointer;box-sizing:border-box;flex-shrink:0;transition:background .05s}
+.vk-wrap{position:relative;height:100%;display:flex;justify-content:flex-start;align-items:flex-start;padding-top:2px;overflow:hidden}
+/* vk-white width/height set by JS per-build for responsiveness */
+.vk-white{position:relative;background:linear-gradient(180deg,#e8e8f0 0%,#fff 60%);border:1px solid #444;border-radius:0 0 3px 3px;cursor:pointer;box-sizing:border-box;flex-shrink:0;transition:background .05s}
 .vk-white:hover{background:linear-gradient(180deg,#c8e8ff 0%,#ddf 60%)}
 .vk-white.pressed{background:linear-gradient(180deg,#00ffaa 0%,#00cc88 60%) !important}
-.vk-black{position:absolute;width:16px;height:52px;background:linear-gradient(180deg,#1a1a2e 0%,#0a0a16 100%);border:1px solid #000;border-radius:0 0 3px 3px;cursor:pointer;z-index:2;top:2px;transition:background .05s}
+.vk-black{position:absolute;background:linear-gradient(180deg,#1a1a2e 0%,#0a0a16 100%);border:1px solid #000;border-radius:0 0 3px 3px;cursor:pointer;z-index:2;top:2px;transition:background .05s}
 .vk-black:hover{background:linear-gradient(180deg,#223 0%,#112 100%)}
 .vk-black.pressed{background:linear-gradient(180deg,#00aa77 0%,#006644 100%) !important}
 .vk-oct-label{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);font-size:7px;color:#555;font-family:'Share Tech Mono',monospace;pointer-events:none}
@@ -393,6 +394,7 @@ hr{border:none;border-top:1px solid var(--border);margin:7px 0}
       <button class="preset-btn" onclick="setPreset(16)">🔮 3D Sphere</button>
       <button class="preset-btn" onclick="setPreset(17)">🍩 3D Torus</button>
       <button class="preset-btn" onclick="setPreset(18)">🫧 3D Blobs</button>
+      <button class="preset-btn" onclick="setPreset(19)">🌀 3D Wormhole</button>
     </div>
   </div>
 
@@ -635,10 +637,46 @@ let freqData, timeData;
 let beatVal=0, beatDecay=0.88, lastBass=0;
 let autoCycleTimer=null;
 
+// Mandelbrot zoom state — driven by active MIDI notes
+let mbZoom = 1.0;      // current zoom (1 = full view)
+let mbZoomTarget = 1.0;
+let mbCx = -0.5, mbCy = 0.0;   // current center
+let mbCxT = -0.5, mbCyT = 0.0; // target center
+
+// 24 points sampled along the Mandelbrot set's main cardioid/bulb perimeter,
+// ordered C0→B7 so that MIDI note % 24 selects a musically-coherent region.
+// Each point is visually distinct and interesting when zoomed.
+const MB_TARGETS = [
+  {cx:-0.750, cy: 0.000}, // C  - left valley
+  {cx:-0.720, cy: 0.188}, // C# - upper cardioid edge
+  {cx:-0.650, cy: 0.320}, // D  - upper bulge
+  {cx:-0.500, cy: 0.433}, // D# - top of cardioid
+  {cx:-0.320, cy: 0.480}, // E  - upper right cardioid
+  {cx:-0.120, cy: 0.440}, // F  - right cardioid top
+  {cx: 0.050, cy: 0.340}, // F# - right side
+  {cx: 0.200, cy: 0.150}, // G  - right cusp area
+  {cx: 0.250, cy: 0.000}, // G# - rightmost point
+  {cx: 0.200, cy:-0.150}, // A  - right lower
+  {cx: 0.050, cy:-0.340}, // A# - lower right
+  {cx:-0.120, cy:-0.440}, // B  - lower cardioid
+  {cx:-0.320, cy:-0.480}, // C' - lower left cardioid
+  {cx:-0.500, cy:-0.433}, // C#'- bottom of cardioid
+  {cx:-0.650, cy:-0.320}, // D' - lower bulge
+  {cx:-0.720, cy:-0.188}, // D#'- lower cardioid edge
+  {cx:-1.250, cy: 0.000}, // E' - period-2 bulb center
+  {cx:-1.380, cy: 0.000}, // F' - left bulb neck
+  {cx:-1.750, cy: 0.000}, // F#'- leftmost spike
+  {cx:-0.760, cy: 0.100}, // G' - upper bulb junction
+  {cx:-0.760, cy:-0.100}, // G#'- lower bulb junction
+  {cx:-1.260, cy: 0.070}, // A' - period-2 top
+  {cx:-1.260, cy:-0.070}, // A#'- period-2 bottom
+  {cx:-0.560, cy: 0.000}, // B' - cardioid center
+];
+
 // Panel visibility
 let synthVisible=true, visVisible=true;
 
-const PNAMES=['PLASMA','TUNNEL','FIREWORKS','MANDALA','JULIA','OCEAN','INFERNO','NEBULA','VORTEX','ORBS','ACID','HYPNO','MANDELBROT','3D TUNNEL','GOD RAYS','AURORA','3D SPHERE','3D TORUS','3D BLOBS'];
+const PNAMES=['PLASMA','TUNNEL','FIREWORKS','MANDALA','JULIA','OCEAN','INFERNO','NEBULA','VORTEX','ORBS','ACID','HYPNO','MANDELBROT','3D TUNNEL','GOD RAYS','AURORA','3D SPHERE','3D TORUS','3D BLOBS','3D WORMHOLE'];
 const NNAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
 // ── LUT multicolor — paletas de 4 puntos con ciclo HSV completo ──
@@ -655,6 +693,10 @@ const LUTS = [
   { name:'Acid',      css:'linear-gradient(to right,#0f0,#ff0,#0ff,#f0f)',                  h:[.33,.16,.5,.83] },
   { name:'Sunset',    css:'linear-gradient(to right,#200,#f60,#f0a,#60f)',                  h:[0,.07,.9,.75] },
   { name:'Ice',       css:'linear-gradient(to right,#006,#08f,#0ff,#fff)',                  h:[.67,.58,.5,.5] },
+  // LUT escala de grises: saturación 0 → tonos neutros via HSV s=0
+  { name:'Grises',    css:'linear-gradient(to right,#000,#555,#aaa,#fff)',                  h:[0,0,0,0], gs:true },
+  // LUT Térmica: frío→caliente estilo infrarrojo
+  { name:'Térmica',   css:'linear-gradient(to right,#00f,#0ff,#ff0,#f00)',                  h:[.67,.5,.16,0] },
 ];
 
 function hsv2rgb(h,s,v){
@@ -668,8 +710,13 @@ function hsv2rgb(h,s,v){
 function getLUTVec(idx) {
   const lut = LUTS[idx];
   const pts = [];
-  lut.h.forEach(h => { const [r,g,b]=hsv2rgb(h,1,1); pts.push(r,g,b); });
-  return pts; // [r0g0b0, r1g1b1, r2g2b2, r3g3b3] = 12 floats
+  if(lut.gs){
+    // Grayscale: 4 evenly-spaced grey values (0, 0.33, 0.67, 1)
+    [0, 0.33, 0.67, 1.0].forEach(v=>{ pts.push(v,v,v); });
+  } else {
+    lut.h.forEach(h => { const [r,g,b]=hsv2rgb(h,1,1); pts.push(r,g,b); });
+  }
+  return pts;
 }
 
 function buildLUTGrid() {
@@ -1641,8 +1688,11 @@ LUT_HEADER+`void main(){
   vec3 c=colorize(vv,t*.08+r*.1)*(1.+BT*.9)*(1.5-r*.5);
   gl_FragColor=vec4(clamp(c*BR,0.,1.),1.);}`,
 
-// 12 MANDELBROT — fractal de Mandelbrot reactivo
+// 12 MANDELBROT — fractal de Mandelbrot con zoom controlado por tono
 LUT_HEADER+`
+uniform float MZ;   // zoom level (JS-driven, pitch-mapped)
+uniform vec2 MC;    // center (JS-driven)
+
 int mandel(vec2 c){
   vec2 z=vec2(0.);
   for(int i=0;i<96;i++){
@@ -1651,18 +1701,17 @@ int mandel(vec2 c){
   }return 96;
 }
 void main(){
-  vec2 uv=(gl_FragCoord.xy/R-.5)*ZM*2.8;uv.x*=R.x/R.y;
-  float t=T*SP,b=B*SN,m=M*SN,tr=TR*SN;
-  // Zoom continuo hacia un punto interesante
-  float zoom=1.+t*.05+b*2.;
-  vec2 center=vec2(-.7269,.1889);
-  vec2 c=uv/zoom+center+vec2(cos(t*.07)*m*.05,sin(t*.05)*tr*.05);
+  // Map screen to Mandelbrot space centered at MC with zoom MZ
+  // At MZ=1: x∈[-2.5,1], y∈[-1.5,1.5] (full set view)
+  vec2 uv=(gl_FragCoord.xy/R-.5)*2.;uv.x*=R.x/R.y;
+  float t=T*SP,b=B*SN,tr=TR*SN;
+  vec2 c=MC+uv*(1.75/MZ);   // 1.75 → full set fits at MZ=1
   int n=mandel(c);
   if(n==96){gl_FragColor=vec4(0.,0.,0.,1.);return;}
   float ff=float(n)/96.;
-  float smooth_n=ff+1.-log(log(dot(vec2(0.),vec2(0.))+1.))/log(2.);
-  vec3 col=colorize(fract(ff*3.+t*.04),t*.05+ff*.5)*(1.+BT*.7);
-  col+=colorize(fract(ff*1.5+.5+t*.03),t*.07)*BT*.5;
+  // Subtle audio-reactive colour cycling (no zoom drift)
+  vec3 col=colorize(fract(ff*3.+t*.03+b*.1),t*.04+ff*.5)*(1.+BT*.7);
+  col+=colorize(fract(ff*1.5+.5+t*.02+tr*.05),t*.05)*BT*.4;
   gl_FragColor=vec4(clamp(col*BR,0.,1.),1.);}`,
 
 // 13 3D TUNNEL — túnel esférico raymarched
@@ -1875,23 +1924,22 @@ void main(){
 LUT_HEADER+`
 float blob(vec3 p,vec3 c,float r){float d=length(p-c);return r*r/(d*d+.0001);}
 
-float sceneBlobs(vec3 p,float t,float b,float m){
-  // 4 metaballs orbiting each other, audio-reactive positions
+float sceneBlobs(vec3 p,float t,float b,float m,float tr){
   float s=.8+b*.3;
   vec3 p0=vec3(cos(t*.7)*s,sin(t*.5)*.4,sin(t*.7)*s);
   vec3 p1=vec3(cos(t*.5+2.09)*s*(.8+m*.3),sin(t*.8+1.)*(.3+b*.2),sin(t*.5+2.09)*s);
   vec3 p2=vec3(cos(t*.6+4.18)*s*.9,sin(t*.4+2.)*(.5+m*.2),sin(t*.6+4.18)*s*.9);
   vec3 p3=vec3(sin(t*.4)*(.4+tr*.3),cos(t*.9)*.6,cos(t*.4)*.5);
   float field=blob(p,p0,.3+b*.1)+blob(p,p1,.28+m*.08)+blob(p,p2,.25+tr*.06)+blob(p,p3,.22+BT*.15);
-  return 1.-field;  // isosurface at field=1
+  return 1.-field;
 }
 
-vec3 normalBlobs(vec3 p,float t,float b,float m){
+vec3 normalBlobs(vec3 p,float t,float b,float m,float tr){
   float e=.004;
   return normalize(vec3(
-    sceneBlobs(p+vec3(e,0,0),t,b,m)-sceneBlobs(p-vec3(e,0,0),t,b,m),
-    sceneBlobs(p+vec3(0,e,0),t,b,m)-sceneBlobs(p-vec3(0,e,0),t,b,m),
-    sceneBlobs(p+vec3(0,0,e),t,b,m)-sceneBlobs(p-vec3(0,0,e),t,b,m)
+    sceneBlobs(p+vec3(e,0,0),t,b,m,tr)-sceneBlobs(p-vec3(e,0,0),t,b,m,tr),
+    sceneBlobs(p+vec3(0,e,0),t,b,m,tr)-sceneBlobs(p-vec3(0,e,0),t,b,m,tr),
+    sceneBlobs(p+vec3(0,0,e),t,b,m,tr)-sceneBlobs(p-vec3(0,0,e),t,b,m,tr)
   ));
 }
 
@@ -1908,7 +1956,7 @@ void main(){
 
   float dist=0.;bool hit=false;
   for(int i=0;i<56;i++){
-    float d=sceneBlobs(ro+rd*dist,t,b,m);
+    float d=sceneBlobs(ro+rd*dist,t,b,m,tr);
     if(d<.005){hit=true;break;}
     if(dist>6.)break;
     dist+=d*.5;
@@ -1921,18 +1969,58 @@ void main(){
   }
 
   vec3 pos=ro+rd*dist;
-  vec3 nor=normalBlobs(pos,t,b,m);
+  vec3 nor=normalBlobs(pos,t,b,m,tr);
   vec3 lightA=normalize(vec3(cos(t*.6),1.,sin(t*.6)));
   vec3 lightB=normalize(vec3(-cos(t*.4),-0.5,-sin(t*.4)));
   float diffA=max(dot(nor,lightA),0.);
   float diffB=max(dot(nor,lightB),0.)*.4;
   float fresnel=pow(1.-abs(dot(rd,nor)),2.5);
 
-  // Color based on position → creates smooth multicolor blending
   float hue=fract(atan(pos.y,length(pos.xz))/(3.14159)+t*.06+b*.12);
   vec3 col=colorize(hue,t*.04)*(diffA+diffB+.2)+fresnel*colorize(hue+.4,t*.07)*(1.+BT);
   col*=(1.+BT*.8);
 
+  gl_FragColor=vec4(clamp(col*BR,0.,1.),1.);}`,
+
+// 19 3D WORMHOLE — raymarched wormhole / hyperspace tunnel
+LUT_HEADER+`
+float wormSDF(vec3 p,float t,float b,float m){
+  float angle=atan(p.y,p.x);
+  float twist=p.z*1.8+t*.6+b*2.;
+  float twisted=angle-twist;
+  vec2 rp=vec2(cos(twisted)*length(p.xy),sin(twisted)*length(p.xy));
+  float base=.55+m*.12+sin(p.z*4.+t*2.)*b*.08;
+  float tube=length(rp)-base;
+  float ribs=sin(p.z*18.+t*3.)*.025;
+  return tube+ribs;
+}
+void main(){
+  vec2 uv=(gl_FragCoord.xy/R-.5)*2.*ZM;uv.x*=R.x/R.y;
+  float t=T*SP,b=B*SN,m=M*SN,tr=TR*SN;
+  vec3 ro=vec3(sin(t*.18)*0.15,cos(t*.13)*0.15,t*1.2);
+  vec3 rd=normalize(vec3(uv,1.4));
+  float dist=0.;bool hit=false;float minD=1e9;
+  for(int i=0;i<64;i++){
+    float d=abs(wormSDF(ro+rd*dist,t,b,m));
+    minD=min(minD,d);
+    if(d<.003){hit=true;break;}
+    if(dist>20.)break;
+    dist+=max(d*.6,.005);
+  }
+  if(!hit){
+    float glow=exp(-minD*4.)*(1.+BT);
+    gl_FragColor=vec4(colorize(.6+tr*.1,t*.05)*glow*BR,1.);
+    return;
+  }
+  vec3 pos=ro+rd*dist;
+  float ang2=atan(pos.y,pos.x);
+  float zf=fract(pos.z*.12+t*.08);
+  float stripe=sin(ang2*10.+t*2.+b*4.)*.5+.5;
+  float pattern=zf*.5+stripe*.5;
+  float glow2=exp(-dist*.04)*(1.+BT*1.8);
+  vec3 col=colorize(pattern,t*.06+ang2*.08)*glow2;
+  float rim=exp(-abs(wormSDF(pos,t,b,m))*80.)*tr;
+  col+=colorize(pattern+.3,t*.05)*rim;
   gl_FragColor=vec4(clamp(col*BR,0.,1.),1.);}`,
 ];
 
@@ -1956,7 +2044,8 @@ function initGL(){
     prog.aPos=gl.getAttribLocation(prog,'p');
     prog.u={T:ul('T'),R:ul('R'),B:ul('B'),M:ul('M'),TR:ul('TR'),BT:ul('BT'),
             SP:ul('SP'),BR:ul('BR'),SN:ul('SN'),ZM:ul('ZM'),PC:ul('PC'),
-            C0:ul('C0'),C1:ul('C1'),C2:ul('C2'),C3:ul('C3')};
+            C0:ul('C0'),C1:ul('C1'),C2:ul('C2'),C3:ul('C3'),
+            MZ:ul('MZ'),MC:ul('MC')};
     return prog;
   });
   resizeGL();
@@ -2003,6 +2092,37 @@ function renderLoop(){
       const zm=parseFloat(document.getElementById('visZoom').value);
       const pc=parseFloat(document.getElementById('visPC').value);
       const lv=getLUTVec(curLUT);
+      // Mandelbrot zoom driven by active notes (MIDI / virtual keyboard / arpeggiator)
+      if(curPreset===12){
+        // Find the lowest active note currently sounding
+        const activeVoices = voices.filter(v=>v.active||v.releasing);
+        if(activeVoices.length > 0){
+          // Use the lowest note for region selection, highest for zoom depth
+          const notes = activeVoices.map(v=>v.note).filter(n=>n>=0);
+          const loNote = Math.min(...notes);  // selects region (perimeter position)
+          const hiNote = Math.max(...notes);  // selects zoom depth
+
+          // Map note 0-127 to MB_TARGETS index (wraps around the perimeter)
+          const tIdx = loNote % MB_TARGETS.length;
+          mbCxT = MB_TARGETS[tIdx].cx;
+          mbCyT = MB_TARGETS[tIdx].cy;
+
+          // Zoom: middle C (60) = 8x, each semitone above multiplies by 1.07
+          // Range: C0≈1x, C4≈8x, C7≈60x, C10≈400x (clamped)
+          mbZoomTarget = Math.min(400, Math.pow(1.07, hiNote - 36));
+        } else {
+          // No notes sounding — return smoothly to full view
+          mbZoomTarget = 1.0;
+          mbCxT = -0.5;
+          mbCyT = 0.0;
+        }
+        // Smooth lerp: 4% per frame when zooming in, 2% when returning (slower return feels natural)
+        const lf = mbZoomTarget > mbZoom ? 0.04 : 0.02;
+        mbZoom += (mbZoomTarget - mbZoom) * lf;
+        mbCx   += (mbCxT - mbCx) * lf;
+        mbCy   += (mbCyT - mbCy) * lf;
+      }
+
       gl.uniform1f(prog.u.T,t);
       gl.uniform2f(prog.u.R,c.width,c.height);
       gl.uniform1f(prog.u.B,bass);gl.uniform1f(prog.u.M,mid);gl.uniform1f(prog.u.TR,treble);
@@ -2013,6 +2133,9 @@ function renderLoop(){
       gl.uniform3f(prog.u.C1,lv[3],lv[4],lv[5]);
       gl.uniform3f(prog.u.C2,lv[6],lv[7],lv[8]);
       gl.uniform3f(prog.u.C3,lv[9],lv[10],lv[11]);
+      // Mandelbrot-specific uniforms (no-op for other shaders — location is null)
+      if(prog.u.MZ) gl.uniform1f(prog.u.MZ, mbZoom);
+      if(prog.u.MC) gl.uniform2f(prog.u.MC, mbCx, mbCy);
       gl.enableVertexAttribArray(prog.aPos);
       gl.vertexAttribPointer(prog.aPos,2,gl.FLOAT,false,0,0);
       gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
@@ -2084,21 +2207,46 @@ const VK_LAYOUT = [
   {s:36,b:false}
 ];
 
-// White key width in pixels — must match CSS .vk-white width (26px)
-const VK_WHITE_W = 26;
+// ── Responsive keyboard builder ────────────────────────────────
+// Fixed white-key width (24px). Compute how many full octaves fit in available space,
+// then build a dynamic layout for exactly that many octaves.
+const VK_WHITE_PX = 24;  // fixed key width — more space → more octaves, not wider keys
 
 function buildVirtualKeyboard(){
   const wrap=document.getElementById('vkWrap');
   wrap.innerHTML='';
-  const whites=VK_LAYOUT.filter(k=>!k.b);
+
+  // Available width = vKeyboard width minus the controls panel (~140px)
+  const availW = Math.max(168, document.getElementById('vKeyboard').clientWidth - 144);
+  const kbH = 86;
+  const whiteW = VK_WHITE_PX;
+  const blackW = Math.round(whiteW * 0.62);
+  const blackH = Math.round(kbH * 0.60);
+
+  // 1 octave = 7 white keys × whiteW px
+  const maxOctaves = Math.max(1, Math.floor(availW / (7 * whiteW)));
+
+  // Build a layout for maxOctaves octaves + final C
+  const layout = [];
+  for(let oct=0; oct<maxOctaves; oct++){
+    const base = oct * 12;
+    [0,1,2,3,4,5,6,7,8,9,10,11].forEach(s=>{
+      const isBlack = [1,3,6,8,10].includes(s);
+      layout.push({s: base+s, b: isBlack});
+    });
+  }
+  layout.push({s: maxOctaves*12, b: false}); // closing C
 
   const wContainer=document.createElement('div');
-  wContainer.style.cssText='position:relative;display:flex;';
+  wContainer.style.cssText='position:relative;display:flex;flex-shrink:0;';
   wrap.appendChild(wContainer);
 
-  whites.forEach((k)=>{
+  // White keys
+  layout.filter(k=>!k.b).forEach(k=>{
     const el=document.createElement('div');
     el.className='vk-white';
+    el.style.width=whiteW+'px';
+    el.style.height=kbH+'px';
     el.dataset.semi=k.s;
     if(k.s%12===0){
       const lbl=document.createElement('div');
@@ -2110,18 +2258,22 @@ function buildVirtualKeyboard(){
     setupVKKey(el);
   });
 
-  // Black keys — positioned absolutely based on white key count before them
-  VK_LAYOUT.filter(k=>k.b).forEach(k=>{
+  // Black keys — positioned absolutely
+  layout.filter(k=>k.b).forEach(k=>{
     const el=document.createElement('div');
     el.className='vk-black';
+    el.style.width=blackW+'px';
+    el.style.height=blackH+'px';
     el.dataset.semi=k.s;
-    const whitesBefore=VK_LAYOUT.filter(x=>!x.b&&x.s<k.s).length;
-    // Centre black key between the two white keys it bridges
-    el.style.left=(whitesBefore*VK_WHITE_W - Math.floor(VK_WHITE_W*0.35))+'px';
+    const whitesBefore=layout.filter(x=>!x.b&&x.s<k.s).length;
+    el.style.left=(whitesBefore*whiteW - Math.round(blackW*0.5))+'px';
     wContainer.appendChild(el);
     setupVKKey(el);
   });
 }
+
+// Rebuild on window resize
+window.addEventListener('resize', ()=>{ if(kbdVisible) buildVirtualKeyboard(); });
 
 function setupVKKey(el){
   const getMIDI=()=>{
@@ -2132,6 +2284,9 @@ function setupVKKey(el){
 
   const press=async(e)=>{
     e.preventDefault();
+    // Capture pointer so pointerleave/pointerup fire on THIS element
+    // even when the pointer moves over other controls (sliders, buttons, etc.)
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
     await ensureAC();
     const note=getMIDI();
     el.classList.add('pressed');
@@ -2140,17 +2295,18 @@ function setupVKKey(el){
   };
   const release=(e)=>{
     e.preventDefault();
+    try{ el.releasePointerCapture(e.pointerId); }catch(_){}
     const note=getMIDI();
     el.classList.remove('pressed');
     releaseNote(note);
     arpHeld.delete(note);onArpNoteOff(note);
   };
 
-  el.addEventListener('pointerdown',press);
-  el.addEventListener('pointerup',release);
-  el.addEventListener('pointerleave',release);
-  el.addEventListener('touchstart',press,{passive:false});
-  el.addEventListener('touchend',release,{passive:false});
+  el.addEventListener('pointerdown', press);
+  el.addEventListener('pointerup',   release);
+  // pointercancel handles edge cases (e.g. OS gesture interrupts)
+  el.addEventListener('pointercancel', release);
+  // Do NOT add pointerleave — with capture active it fires incorrectly on drag-over
 }
 
 function vkShiftOct(dir){
@@ -2166,9 +2322,89 @@ function toggleKeyboard(){
   const btn=document.getElementById('kbdToggleBtn');
   btn.classList.toggle('active',kbdVisible);
   btn.title=kbdVisible?'Ocultar teclado':'Mostrar teclado';
-  // Forzar reflow del canvas WebGL después de la transición CSS
-  setTimeout(resizeGL, 240);
+  setTimeout(()=>{ resizeGL(); if(kbdVisible) buildVirtualKeyboard(); }, 240);
 }
+
+// ── QWERTY → MIDI mapping ──────────────────────────────────────
+// QWERTY → MIDI mapping with per-key octave offset relative to vkBaseOct
+// {s: semitone 0-11, o: octave offset from vkBaseOct}
+// Teclas mudas sin entrada: A, F, K, 1, 4, 8
+const QWERTY_MAP = {
+  // ── Fila Z (blancas, octava base) ──────────────────────────
+  'z':{s:0,o:0}, 'x':{s:2,o:0}, 'c':{s:4,o:0}, 'v':{s:5,o:0},
+  'b':{s:7,o:0}, 'n':{s:9,o:0}, 'm':{s:11,o:0},
+  ',':{s:0,o:1}, '.':{s:2,o:1}, '-':{s:4,o:1},
+  // ── Fila A (negras, octava base y base+1) ──────────────────
+  // A=muda, F=muda, K=muda
+  's':{s:1,o:0}, 'd':{s:3,o:0},
+  'g':{s:6,o:0}, 'h':{s:8,o:0}, 'j':{s:10,o:0},
+  'l':{s:1,o:1}, 'ñ':{s:3,o:1},
+  // ── Fila Q (blancas, octava base+1) ────────────────────────
+  'q':{s:0,o:1}, 'w':{s:2,o:1}, 'e':{s:4,o:1}, 'r':{s:5,o:1},
+  't':{s:7,o:1}, 'y':{s:9,o:1}, 'u':{s:11,o:1},
+  'i':{s:0,o:2}, 'o':{s:2,o:2}, 'p':{s:4,o:2},
+  // ── Fila numérica (negras, octava base+1 y base+2) ─────────
+  // 1=muda, 4=muda, 8=muda
+  '2':{s:1,o:1}, '3':{s:3,o:1},
+  '5':{s:6,o:1}, '6':{s:8,o:1}, '7':{s:10,o:1},
+  '9':{s:1,o:2}, '0':{s:3,o:2},
+};
+
+const QWERTY_OCT_UP   = new Set(['arrowup','arrowright']);
+const QWERTY_OCT_DOWN = new Set(['arrowleft','arrowdown']);
+
+const qwertyHeld = new Set(); // debounce: track held keys
+
+function qwertyNoteOn(key){
+  const map = QWERTY_MAP[key]; if(!map) return;
+  const note = (vkBaseOct + map.o)*12 + map.s;
+  if(note<0||note>127) return;
+  triggerNote(note, parseInt(document.getElementById('vkVel').value));
+  arpHeld.add(note); onArpNoteOn(note);
+  // Highlight virtual key — semi relative to vkBaseOct for display
+  const dispSemi = map.o*12 + map.s;
+  document.querySelectorAll('.vk-white,.vk-black').forEach(el=>{
+    if(parseInt(el.dataset.semi)===dispSemi) el.classList.add('pressed');
+  });
+}
+
+function qwertyNoteOff(key){
+  const map = QWERTY_MAP[key]; if(!map) return;
+  const note = (vkBaseOct + map.o)*12 + map.s;
+  if(note<0||note>127) return;
+  releaseNote(note);
+  arpHeld.delete(note); onArpNoteOff(note);
+  const dispSemi = map.o*12 + map.s;
+  document.querySelectorAll('.vk-white,.vk-black').forEach(el=>{
+    if(parseInt(el.dataset.semi)===dispSemi) el.classList.remove('pressed');
+  });
+}
+
+document.addEventListener('keydown', async e=>{
+  // Ignore if focus is on an input/select/textarea
+  if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+  const key = e.key.toLowerCase();
+
+  // Octave shift
+  if(QWERTY_OCT_UP.has(key)){e.preventDefault();vkShiftOct(+1);return;}
+  if(QWERTY_OCT_DOWN.has(key)){e.preventDefault();vkShiftOct(-1);return;}
+
+  // Debounce key repeat
+  if(qwertyHeld.has(key)) return;
+  if(!QWERTY_MAP[key]) return;
+
+  e.preventDefault();
+  qwertyHeld.add(key);
+  await ensureAC();
+  qwertyNoteOn(key);
+});
+
+document.addEventListener('keyup', e=>{
+  const key = e.key.toLowerCase();
+  if(!qwertyHeld.has(key)) return;
+  qwertyHeld.delete(key);
+  qwertyNoteOff(key);
+});
 
 // ── Init ──────────────────────────────────────────────────────
 window.addEventListener('load',()=>{
